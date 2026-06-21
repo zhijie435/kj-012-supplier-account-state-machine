@@ -11,11 +11,17 @@ class Order extends Model
     use HasFactory, SoftDeletes;
 
     const STATUS_PENDING_PAYMENT = 0;
+
     const STATUS_PENDING_SHIPMENT = 1;
+
     const STATUS_SHIPPED = 2;
+
     const STATUS_COMPLETED = 3;
+
     const STATUS_CANCELLED = 4;
+
     const STATUS_REFUNDING = 5;
+
     const STATUS_REFUNDED = 6;
 
     protected $fillable = [

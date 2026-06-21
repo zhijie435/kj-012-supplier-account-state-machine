@@ -183,7 +183,7 @@ class SupplierController extends Controller
 
     public function allowedTransitions(Request $request, Supplier $supplier)
     {
-        $transitions = $supplier->stateMachine()->allowedTransitions();
+        $transitions = $supplier->allowedTransitions();
 
         return response()->json([
             'data' => array_map(
@@ -191,6 +191,7 @@ class SupplierController extends Controller
                     'value' => $status->value,
                     'label' => $status->label(),
                     'color' => $status->color(),
+                    'requires_remark' => $supplier->getStatusEnum()->requiresRemark($status),
                 ],
                 $transitions
             ),

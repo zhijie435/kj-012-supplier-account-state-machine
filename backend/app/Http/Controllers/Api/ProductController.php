@@ -103,7 +103,7 @@ class ProductController extends Controller
     {
         $request->validate([
             'name' => 'string|max:255',
-            'sku' => 'string|max:64|unique:products,sku,' . $product->id,
+            'sku' => 'string|max:64|unique:products,sku,'.$product->id,
             'barcode' => 'nullable|string|max:64',
             'supplier_id' => 'nullable|integer|exists:users,id',
             'category' => 'nullable|string|max:128',

@@ -2,8 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\Order;
-use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Settlement;
 use App\Models\SettlementItem;
@@ -29,6 +27,7 @@ class SettlementService
         $prefix = $prefixMap[$type] ?? 'SET';
         $date = now()->format('Ymd');
         $random = strtoupper(Str::random(6));
+
         return "{$prefix}-{$date}-{$random}";
     }
 
@@ -46,7 +45,9 @@ class SettlementService
 
         foreach ($items as $item) {
             $product = Product::find($item['product_id']);
-            if (!$product) continue;
+            if (! $product) {
+                continue;
+            }
 
             $qty = (int) ($item['quantity'] ?? 1);
             $salePrice = (float) ($item['sale_price'] ?? $product->price);
@@ -95,7 +96,7 @@ class SettlementService
         ];
     }
 
-    public function createSettlement(array $data, int $userId = null): Settlement
+    public function createSettlement(array $data, ?int $userId = null): Settlement
     {
         DB::beginTransaction();
         try {
@@ -141,6 +142,7 @@ class SettlementService
             }
 
             DB::commit();
+
             return $settlement->fresh(['items']);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -148,9 +150,9 @@ class SettlementService
         }
     }
 
-    public function recalculateSettlement(Settlement $settlement, int $userId = null): Settlement
+    public function recalculateSettlement(Settlement $settlement, ?int $userId = null): Settlement
     {
-        if (!$settlement->canConfirm() && $settlement->status !== Settlement::STATUS_CONFIRMED) {
+        if (! $settlement->canConfirm() && $settlement->status !== Settlement::STATUS_CONFIRMED) {
             throw new \Exception('当前状态不允许重新计算');
         }
 
@@ -194,6 +196,7 @@ class SettlementService
             ]);
 
             DB::commit();
+
             return $settlement->fresh(['items']);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -201,9 +204,9 @@ class SettlementService
         }
     }
 
-    public function confirmSettlement(Settlement $settlement, int $userId = null): Settlement
+    public function confirmSettlement(Settlement $settlement, ?int $userId = null): Settlement
     {
-        if (!$settlement->canConfirm()) {
+        if (! $settlement->canConfirm()) {
             throw new \Exception('只有待确认状态的结算单可以确认');
         }
 
@@ -214,6 +217,7 @@ class SettlementService
                 'updated_by' => $userId,
             ]);
             DB::commit();
+
             return $settlement->fresh();
         } catch (\Exception $e) {
             DB::rollBack();
@@ -221,9 +225,9 @@ class SettlementService
         }
     }
 
-    public function settleSettlement(Settlement $settlement, int $userId = null): Settlement
+    public function settleSettlement(Settlement $settlement, ?int $userId = null): Settlement
     {
-        if (!$settlement->canSettle()) {
+        if (! $settlement->canSettle()) {
             throw new \Exception('只有已确认状态的结算单可以完成结算');
         }
 
@@ -236,6 +240,7 @@ class SettlementService
                 'updated_by' => $userId,
             ]);
             DB::commit();
+
             return $settlement->fresh();
         } catch (\Exception $e) {
             DB::rollBack();
@@ -243,9 +248,9 @@ class SettlementService
         }
     }
 
-    public function cancelSettlement(Settlement $settlement, string $reason = '', int $userId = null): Settlement
+    public function cancelSettlement(Settlement $settlement, string $reason = '', ?int $userId = null): Settlement
     {
-        if (!$settlement->canCancel()) {
+        if (! $settlement->canCancel()) {
             throw new \Exception('当前状态不允许取消');
         }
 
@@ -253,10 +258,11 @@ class SettlementService
         try {
             $settlement->update([
                 'status' => Settlement::STATUS_CANCELLED,
-                'remark' => $reason ?: ($settlement->remark ? $settlement->remark . ' | ' : '') . '手动取消',
+                'remark' => $reason ?: ($settlement->remark ? $settlement->remark.' | ' : '').'手动取消',
                 'updated_by' => $userId,
             ]);
             DB::commit();
+
             return $settlement->fresh();
         } catch (\Exception $e) {
             DB::rollBack();

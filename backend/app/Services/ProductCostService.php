@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Product;
 use App\Models\ProductCost;
-use App\Models\OrderItem;
 use Illuminate\Support\Facades\DB;
 
 class ProductCostService
@@ -28,6 +27,7 @@ class ProductCostService
             ->active()
             ->effectiveAt($date)
             ->get();
+
         return round($activeCosts->sum('total_cost'), 2);
     }
 
@@ -78,7 +78,7 @@ class ProductCostService
         ];
     }
 
-    public function createProductCost(int $productId, array $data, int $userId = null): ProductCost
+    public function createProductCost(int $productId, array $data, ?int $userId = null): ProductCost
     {
         Product::findOrFail($productId);
 
@@ -99,7 +99,7 @@ class ProductCostService
             ];
             $costData['total_cost'] = round($costData['unit_cost'] * $costData['quantity'], 2);
 
-            if (!empty($costData['is_active'])) {
+            if (! empty($costData['is_active'])) {
                 ProductCost::where('product_id', $productId)
                     ->where('cost_type', $costData['cost_type'])
                     ->where('is_active', 1)
@@ -113,6 +113,7 @@ class ProductCostService
             $productCost = ProductCost::create($costData);
 
             DB::commit();
+
             return $productCost->fresh();
         } catch (\Exception $e) {
             DB::rollBack();
@@ -120,7 +121,7 @@ class ProductCostService
         }
     }
 
-    public function batchCreateProductCosts(int $productId, array $costItems, int $userId = null): array
+    public function batchCreateProductCosts(int $productId, array $costItems, ?int $userId = null): array
     {
         $created = [];
         DB::beginTransaction();
@@ -130,6 +131,7 @@ class ProductCostService
                 $created[] = $this->createProductCost($productId, $item, $userId);
             }
             DB::commit();
+
             return $created;
         } catch (\Exception $e) {
             DB::rollBack();
@@ -137,7 +139,7 @@ class ProductCostService
         }
     }
 
-    public function updateProductCost(ProductCost $productCost, array $data, int $userId = null): ProductCost
+    public function updateProductCost(ProductCost $productCost, array $data, ?int $userId = null): ProductCost
     {
         DB::beginTransaction();
         try {
@@ -157,6 +159,7 @@ class ProductCostService
             $productCost->update($updateData);
 
             DB::commit();
+
             return $productCost->fresh();
         } catch (\Exception $e) {
             DB::rollBack();
@@ -164,12 +167,13 @@ class ProductCostService
         }
     }
 
-    public function toggleActive(ProductCost $productCost, int $userId = null): ProductCost
+    public function toggleActive(ProductCost $productCost, ?int $userId = null): ProductCost
     {
         $productCost->update([
             'is_active' => $productCost->is_active ? 0 : 1,
             'updated_by' => $userId,
         ]);
+
         return $productCost->fresh();
     }
 

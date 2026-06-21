@@ -23,7 +23,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 ])]
 class Supplier extends Model
 {
-    use HasFactory, SoftDeletes, HasStateMachine;
+    use HasFactory, HasStateMachine, SoftDeletes;
 
     protected function casts(): array
     {
@@ -74,34 +74,24 @@ class Supplier extends Model
         return $query->where('status', $value);
     }
 
-    public function scopePending(Builder $query): Builder
+    public function scopeStatusIn(Builder $query, array $statuses): Builder
     {
-        return $query->where('status', SupplierAccountStatus::PENDING->value);
+        $values = array_map(
+            fn ($status) => $status instanceof SupplierAccountStatus ? $status->value : $status,
+            $statuses
+        );
+
+        return $query->whereIn('status', $values);
     }
 
-    public function scopeVerifying(Builder $query): Builder
+    public function scopeNotTerminal(Builder $query): Builder
     {
-        return $query->where('status', SupplierAccountStatus::VERIFYING->value);
-    }
+        $nonTerminalStatuses = array_filter(
+            SupplierAccountStatus::cases(),
+            fn (SupplierAccountStatus $status) => ! $status->isTerminal()
+        );
 
-    public function scopeActive(Builder $query): Builder
-    {
-        return $query->where('status', SupplierAccountStatus::ACTIVE->value);
-    }
-
-    public function scopeSuspended(Builder $query): Builder
-    {
-        return $query->where('status', SupplierAccountStatus::SUSPENDED->value);
-    }
-
-    public function scopeRejected(Builder $query): Builder
-    {
-        return $query->where('status', SupplierAccountStatus::REJECTED->value);
-    }
-
-    public function scopeCancelled(Builder $query): Builder
-    {
-        return $query->where('status', SupplierAccountStatus::CANCELLED->value);
+        return $this->scopeStatusIn($query, $nonTerminalStatuses);
     }
 
     public function getStatusLabelAttribute(): string
@@ -116,6 +106,6 @@ class Supplier extends Model
 
     public function getAllowedTransitionsAttribute(): array
     {
-        return $this->stateMachine()->allowedTransitions();
+        return $this->allowedTransitions();
     }
 }

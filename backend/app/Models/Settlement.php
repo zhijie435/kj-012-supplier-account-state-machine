@@ -11,12 +11,17 @@ class Settlement extends Model
     use HasFactory, SoftDeletes;
 
     const TYPE_ORDER = 'order';
+
     const TYPE_MONTHLY = 'monthly';
+
     const TYPE_MANUAL = 'manual';
 
     const STATUS_PENDING = 'pending';
+
     const STATUS_CONFIRMED = 'confirmed';
+
     const STATUS_SETTLED = 'settled';
+
     const STATUS_CANCELLED = 'cancelled';
 
     protected $fillable = [

@@ -10,11 +10,17 @@ class ProductCost extends Model
     use HasFactory;
 
     const COST_TYPE_PURCHASE = 'purchase';
+
     const COST_TYPE_SHIPPING = 'shipping';
+
     const COST_TYPE_PACKAGING = 'packaging';
+
     const COST_TYPE_PLATFORM_FEE = 'platform_fee';
+
     const COST_TYPE_MARKETING = 'marketing';
+
     const COST_TYPE_TAX = 'tax';
+
     const COST_TYPE_OTHER = 'other';
 
     protected $fillable = [
@@ -72,6 +78,7 @@ class ProductCost extends Model
     public function scopeEffectiveAt($query, $date = null)
     {
         $date = $date ?: now();
+
         return $query->whereDate('effective_date', '<=', $date)
             ->where(function ($q) use ($date) {
                 $q->whereNull('expiry_date')

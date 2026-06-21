@@ -101,6 +101,7 @@ class Product extends Model
                     ->orWhereDate('expiry_date', '>=', now());
             })
             ->get();
+
         return $activeCosts->sum('total_cost');
     }
 
@@ -113,7 +114,10 @@ class Product extends Model
     {
         $price = (float) ($this->price ?? 0);
         $cost = (float) ($this->cost ?? 0);
-        if ($price <= 0) return 0;
+        if ($price <= 0) {
+            return 0;
+        }
+
         return round(($price - $cost) / $price, 4);
     }
 }

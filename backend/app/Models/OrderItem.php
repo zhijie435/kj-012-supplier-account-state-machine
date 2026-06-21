@@ -81,6 +81,7 @@ class OrderItem extends Model
         } else {
             $this->profit_rate = 0;
         }
+
         return $this;
     }
 }

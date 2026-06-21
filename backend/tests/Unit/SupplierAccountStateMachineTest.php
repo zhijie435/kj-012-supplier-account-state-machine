@@ -3,7 +3,6 @@
 namespace Tests\Unit;
 
 use App\Enums\SupplierAccountStatus;
-use App\Exceptions\StateTransitionException;
 use App\Models\Supplier;
 use App\Services\StateMachine\SupplierAccountStateMachine;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -201,8 +200,30 @@ class SupplierAccountStateMachineTest extends TestCase
             'status' => SupplierAccountStatus::ACTIVE->value,
         ]);
 
-        $this->assertEquals(1, Supplier::pending()->count());
-        $this->assertEquals(1, Supplier::active()->count());
-        $this->assertEquals(0, Supplier::suspended()->count());
+        $this->assertEquals(1, Supplier::byStatus(SupplierAccountStatus::PENDING)->count());
+        $this->assertEquals(1, Supplier::byStatus(SupplierAccountStatus::ACTIVE)->count());
+        $this->assertEquals(0, Supplier::byStatus(SupplierAccountStatus::SUSPENDED)->count());
+        $this->assertEquals(2, Supplier::notTerminal()->count());
+        $this->assertEquals(2, Supplier::statusIn([SupplierAccountStatus::PENDING, SupplierAccountStatus::ACTIVE])->count());
+    }
+
+    public function test_enum_transition_config()
+    {
+        $this->assertEquals('supplier.approve', SupplierAccountStatus::PENDING->getRequiredPermission(SupplierAccountStatus::VERIFYING));
+        $this->assertTrue(SupplierAccountStatus::PENDING->requiresRemark(SupplierAccountStatus::REJECTED));
+        $this->assertFalse(SupplierAccountStatus::PENDING->requiresRemark(SupplierAccountStatus::VERIFYING));
+    }
+
+    public function test_state_machine_permission_validation()
+    {
+        $supplier = new Supplier(['status' => SupplierAccountStatus::PENDING->value]);
+        $stateMachine = new SupplierAccountStateMachine($supplier);
+
+        $result = $stateMachine->validateTransition(SupplierAccountStatus::VERIFYING, [
+            'operated_by' => 999,
+        ]);
+
+        $this->assertFalse($result->isValid());
+        $this->assertArrayHasKey('permission_denied', $result->errors);
     }
 }

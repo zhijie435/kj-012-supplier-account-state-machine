@@ -13,9 +13,9 @@ interface StateMachineInterface
 
     public function canTransitionTo(BackedEnum $targetState, array $context = []): bool;
 
+    public function validateTransition(BackedEnum $targetState, array $context = []): TransitionResult;
+
     public function transitionTo(BackedEnum $targetState, array $context = []): Model;
 
     public function allowedTransitions(): array;
-
-    public function validateTransition(BackedEnum $targetState, array $context = []): TransitionResult;
 }

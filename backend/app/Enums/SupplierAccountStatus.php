@@ -11,6 +11,30 @@ enum SupplierAccountStatus: string
     case REJECTED = 'rejected';
     case CANCELLED = 'cancelled';
 
+    private const TRANSITION_MAP = [
+        self::PENDING->value => [
+            self::VERIFYING->value => ['permission' => 'supplier.approve'],
+            self::REJECTED->value => ['permission' => 'supplier.approve', 'require_remark' => true],
+            self::CANCELLED->value => ['permission' => 'supplier.approve'],
+        ],
+        self::VERIFYING->value => [
+            self::ACTIVE->value => ['permission' => 'supplier.approve'],
+            self::REJECTED->value => ['permission' => 'supplier.approve', 'require_remark' => true],
+            self::SUSPENDED->value => ['permission' => 'supplier.approve'],
+            self::PENDING->value => ['permission' => 'supplier.approve'],
+        ],
+        self::ACTIVE->value => [
+            self::SUSPENDED->value => ['permission' => 'supplier.approve'],
+            self::CANCELLED->value => ['permission' => 'supplier.approve'],
+        ],
+        self::SUSPENDED->value => [
+            self::ACTIVE->value => ['permission' => 'supplier.approve'],
+            self::CANCELLED->value => ['permission' => 'supplier.approve'],
+        ],
+        self::REJECTED->value => [],
+        self::CANCELLED->value => [],
+    ];
+
     public function label(): string
     {
         return match ($this) {
@@ -49,52 +73,34 @@ enum SupplierAccountStatus: string
 
     public function isTerminal(): bool
     {
-        return in_array($this, [
-            self::REJECTED,
-            self::CANCELLED,
-        ], true);
+        return in_array($this, [self::REJECTED, self::CANCELLED], true);
     }
 
     public function canTransitionTo(self $target): bool
     {
-        $transitions = [
-            self::PENDING->value => [
-                self::VERIFYING->value,
-                self::REJECTED->value,
-                self::CANCELLED->value,
-            ],
-            self::VERIFYING->value => [
-                self::ACTIVE->value,
-                self::REJECTED->value,
-                self::SUSPENDED->value,
-                self::PENDING->value,
-            ],
-            self::ACTIVE->value => [
-                self::SUSPENDED->value,
-                self::CANCELLED->value,
-            ],
-            self::SUSPENDED->value => [
-                self::ACTIVE->value,
-                self::CANCELLED->value,
-            ],
-            self::REJECTED->value => [],
-            self::CANCELLED->value => [],
-        ];
-
-        return in_array($target->value, $transitions[$this->value] ?? [], true);
+        return isset(self::TRANSITION_MAP[$this->value][$target->value]);
     }
 
     public function allowedTransitions(): array
     {
-        $transitions = [
-            self::PENDING->value => [self::VERIFYING, self::REJECTED, self::CANCELLED],
-            self::VERIFYING->value => [self::ACTIVE, self::REJECTED, self::SUSPENDED, self::PENDING],
-            self::ACTIVE->value => [self::SUSPENDED, self::CANCELLED],
-            self::SUSPENDED->value => [self::ACTIVE, self::CANCELLED],
-            self::REJECTED->value => [],
-            self::CANCELLED->value => [],
-        ];
+        return array_map(
+            fn (string $value) => self::from($value),
+            array_keys(self::TRANSITION_MAP[$this->value] ?? [])
+        );
+    }
 
-        return $transitions[$this->value] ?? [];
+    public function getTransitionConfig(self $target): ?array
+    {
+        return self::TRANSITION_MAP[$this->value][$target->value] ?? null;
+    }
+
+    public function getRequiredPermission(self $target): ?string
+    {
+        return $this->getTransitionConfig($target)['permission'] ?? null;
+    }
+
+    public function requiresRemark(self $target): bool
+    {
+        return $this->getTransitionConfig($target)['require_remark'] ?? false;
     }
 }

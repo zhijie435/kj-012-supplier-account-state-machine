@@ -8,8 +8,7 @@ class TransitionResult
         public readonly bool $valid,
         public readonly string $message = '',
         public readonly array $errors = [],
-    ) {
-    }
+    ) {}
 
     public static function success(string $message = ''): self
     {
@@ -28,6 +27,6 @@ class TransitionResult
 
     public function isInvalid(): bool
     {
-        return !$this->valid;
+        return ! $this->valid;
     }
 }

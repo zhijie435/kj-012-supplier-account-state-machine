@@ -200,7 +200,7 @@ class SettlementController extends Controller
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                               'code' => 1,
+                'code' => 1,
                 'data' => null,
                 'message' => $e->getMessage(),
             ], 400);
@@ -225,7 +225,7 @@ class SettlementController extends Controller
 
     public function destroy(Settlement $settlement): JsonResponse
     {
-        if (!$settlement->isEditable()) {
+        if (! $settlement->isEditable()) {
             return response()->json([
                 'code' => 1,
                 'data' => null,

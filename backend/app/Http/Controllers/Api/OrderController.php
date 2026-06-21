@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Product;
 use App\Services\ProductCostService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,7 +22,7 @@ class OrderController extends Controller
 
     public function generateOrderNo(): string
     {
-        return 'ORD' . now()->format('YmdHis') . strtoupper(Str::random(4));
+        return 'ORD'.now()->format('YmdHis').strtoupper(Str::random(4));
     }
 
     public function index(Request $request): JsonResponse
@@ -106,7 +107,7 @@ class OrderController extends Controller
         $totalCost = 0;
 
         foreach ($request->items as $itemData) {
-            $product = \App\Models\Product::find($itemData['product_id']);
+            $product = Product::find($itemData['product_id']);
             $snapshot = $this->costService->buildOrderItemCostSnapshot(
                 $product,
                 $itemData['quantity'],
