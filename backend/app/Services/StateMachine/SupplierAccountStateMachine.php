@@ -80,7 +80,7 @@ class SupplierAccountStateMachine implements StateMachineInterface
 
             case SupplierAccountStatus::CANCELLED:
                 if ($this->supplier->orders()->count() > 0) {
-                    return TransitionResult::failure('供应商存在未完成的订单，无法注销');
+                    return TransitionResult::failure('供应商存在关联订单，无法注销');
                 }
                 break;
         }
@@ -97,10 +97,13 @@ class SupplierAccountStateMachine implements StateMachineInterface
         $validation = $this->validateTransition($targetState, $context);
 
         if ($validation->isInvalid()) {
-            throw StateTransitionException::invalidTransition(
-                $this->currentState()->label(),
-                $targetState->label(),
-                array_map(fn (SupplierAccountStatus $s) => $s->label(), $this->currentState()->allowedTransitions())
+            throw new StateTransitionException(
+                $validation->message ?: "不允许从「{$this->currentState()->label()}」变更为「{$targetState->label()}」",
+                [
+                    'from_state' => $this->currentState()->label(),
+                    'to_state' => $targetState->label(),
+                    'allowed_states' => array_map(fn (SupplierAccountStatus $s) => $s->label(), $this->currentState()->allowedTransitions()),
+                ]
             );
         }
 
@@ -113,8 +116,8 @@ class SupplierAccountStateMachine implements StateMachineInterface
 
             $this->supplier->status = $targetState;
 
-            if (isset($context['remark'])) {
-                $this->supplier->remark = $context['remark'] ?? $this->supplier->remark;
+            if (array_key_exists('remark', $context)) {
+                $this->supplier->remark = $context['remark'];
             }
 
             if (isset($context['operated_by'])) {

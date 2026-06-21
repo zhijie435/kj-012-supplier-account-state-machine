@@ -16,9 +16,14 @@ class SupplierObserver
         }
 
         $originalRawValue = $supplier->getRawOriginal('status');
-        $originalStatus = $originalRawValue instanceof SupplierAccountStatus
-            ? $originalRawValue
-            : SupplierAccountStatus::tryFrom($originalRawValue);
+
+        if ($originalRawValue instanceof SupplierAccountStatus) {
+            $originalStatus = $originalRawValue;
+        } elseif (is_string($originalRawValue) || is_int($originalRawValue)) {
+            $originalStatus = SupplierAccountStatus::tryFrom($originalRawValue);
+        } else {
+            $originalStatus = null;
+        }
         $newStatus = $supplier->getStatusEnum();
 
         if ($originalStatus && $originalStatus !== $newStatus) {
