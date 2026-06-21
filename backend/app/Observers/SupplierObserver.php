@@ -2,41 +2,12 @@
 
 namespace App\Observers;
 
-use App\Enums\SupplierAccountStatus;
 use App\Models\Supplier;
 use App\Models\SupplierAccountStatusLog;
 use Illuminate\Support\Facades\Auth;
 
 class SupplierObserver
 {
-    public function updated(Supplier $supplier): void
-    {
-        if (! $supplier->wasChanged('status')) {
-            return;
-        }
-
-        $originalRawValue = $supplier->getRawOriginal('status');
-
-        if ($originalRawValue instanceof SupplierAccountStatus) {
-            $originalStatus = $originalRawValue;
-        } elseif (is_string($originalRawValue) || is_int($originalRawValue)) {
-            $originalStatus = SupplierAccountStatus::tryFrom($originalRawValue);
-        } else {
-            $originalStatus = null;
-        }
-        $newStatus = $supplier->getStatusEnum();
-
-        if ($originalStatus && $originalStatus !== $newStatus) {
-            SupplierAccountStatusLog::create([
-                'supplier_id' => $supplier->id,
-                'from_status' => $originalStatus->value,
-                'to_status' => $newStatus->value,
-                'remark' => $supplier->remark,
-                'operated_by' => Auth::id() ?? $supplier->operated_by,
-            ]);
-        }
-    }
-
     public function created(Supplier $supplier): void
     {
         $status = $supplier->getStatusEnum();

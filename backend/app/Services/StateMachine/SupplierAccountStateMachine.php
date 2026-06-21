@@ -7,6 +7,7 @@ use App\Contracts\StateMachine\TransitionResult;
 use App\Enums\SupplierAccountStatus;
 use App\Exceptions\StateTransitionException;
 use App\Models\Supplier;
+use App\Models\SupplierAccountStatusLog;
 use BackedEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -94,6 +95,12 @@ class SupplierAccountStateMachine implements StateMachineInterface
             throw new \InvalidArgumentException('无效的供应商账户状态类型');
         }
 
+        $currentState = $this->currentState();
+
+        if ($currentState === $targetState) {
+            return $this->supplier;
+        }
+
         $validation = $this->validateTransition($targetState, $context);
 
         if ($validation->isInvalid()) {
@@ -107,7 +114,7 @@ class SupplierAccountStateMachine implements StateMachineInterface
             );
         }
 
-        return DB::transaction(function () use ($targetState, $context) {
+        return DB::transaction(function () use ($currentState, $targetState, $context) {
             $timestampField = $targetState->timestampField();
 
             if ($timestampField && ! $this->supplier->$timestampField) {
@@ -116,15 +123,19 @@ class SupplierAccountStateMachine implements StateMachineInterface
 
             $this->supplier->status = $targetState;
 
-            if (array_key_exists('remark', $context)) {
-                $this->supplier->remark = $context['remark'];
-            }
-
             if (isset($context['operated_by'])) {
                 $this->supplier->operated_by = $context['operated_by'];
             }
 
             $this->supplier->save();
+
+            SupplierAccountStatusLog::create([
+                'supplier_id' => $this->supplier->id,
+                'from_status' => $currentState->value,
+                'to_status' => $targetState->value,
+                'remark' => $context['remark'] ?? null,
+                'operated_by' => $context['operated_by'] ?? null,
+            ]);
 
             return $this->supplier;
         });
