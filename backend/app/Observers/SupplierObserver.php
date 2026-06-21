@@ -10,6 +10,7 @@ class SupplierObserver
 {
     public function created(Supplier $supplier): void
     {
+        $supplier->refresh();
         $status = $supplier->getStatusEnum();
 
         SupplierAccountStatusLog::create([

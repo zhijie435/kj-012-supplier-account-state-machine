@@ -12,17 +12,24 @@ class SupplierRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if (! $this->filled('status')) {
+            $this->request->remove('status');
+        }
+    }
+
     public function rules(): array
     {
-        $required = $this->isUpdate() ? 'sometimes|required' : 'required';
+        $isUpdate = $this->isUpdate();
         $statusValues = array_column(SupplierAccountStatus::cases(), 'value');
 
         return [
-            'name' => [$required, 'string', 'max:255'],
+            'name' => array_merge($isUpdate ? ['sometimes'] : [], ['required', 'string', 'max:255']),
             'company_name' => ['nullable', 'string', 'max:255'],
             'business_license' => ['nullable', 'string', 'max:255'],
-            'contact_person' => [$required, 'string', 'max:100'],
-            'phone' => [$required, 'string', 'max:30'],
+            'contact_person' => array_merge($isUpdate ? ['sometimes'] : [], ['required', 'string', 'max:100']),
+            'phone' => array_merge($isUpdate ? ['sometimes'] : [], ['required', 'string', 'max:30']),
             'email' => ['nullable', 'email', 'max:255'],
             'address' => ['nullable', 'string', 'max:500'],
             'bank_name' => ['nullable', 'string', 'max:100'],

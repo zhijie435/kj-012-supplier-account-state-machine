@@ -18,7 +18,7 @@ abstract class Controller extends BaseController
     protected function applySearch($query, $request, array $fields): void
     {
         if ($request->filled('search')) {
-            $search = $request->string('search');
+            $search = (string) $request->string('search');
             $query->where(function ($q) use ($search, $fields) {
                 foreach ($fields as $field) {
                     $q->orWhere($field, 'like', "%{$search}%");
