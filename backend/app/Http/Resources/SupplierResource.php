@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\SupplierAccountStatus;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class SupplierResource extends JsonResource
@@ -21,7 +22,9 @@ class SupplierResource extends JsonResource
             'bank_account' => $this->bank_account,
             'credit_limit' => $this->credit_limit,
             'balance' => $this->balance,
-            'status' => $this->status,
+            'status' => $this->status instanceof SupplierAccountStatus
+                ? $this->status->value
+                : (string) $this->status,
             'status_label' => $this->status_label,
             'status_color' => $this->status_color,
             'remark' => $this->remark,
@@ -40,7 +43,7 @@ class SupplierResource extends JsonResource
             'products_count' => $this->whenCounted('products'),
             'orders_count' => $this->whenCounted('orders'),
             'allowed_transitions' => $this->when(
-                $request->user()->can('supplier.edit'),
+                $request->user() && $request->user()->can('supplier.edit'),
                 fn () => array_map(
                     fn ($status) => ['value' => $status->value, 'label' => $status->label(), 'color' => $status->color()],
                     $this->allowed_transitions

@@ -1,6 +1,10 @@
 <template>
   <div class="state-flow-diagram">
-    <svg :width="svgWidth" :height="svgHeight" class="diagram-svg">
+    <svg
+      :viewBox="`0 0 ${viewBoxWidth} ${viewBoxHeight}`"
+      preserveAspectRatio="xMidYMid meet"
+      class="diagram-svg"
+    >
       <defs>
         <marker
           id="arrowhead"
@@ -48,8 +52,8 @@
         <rect
           :width="nodeWidth"
           :height="nodeHeight"
-          :rx="8"
-          :ry="8"
+          :rx="6"
+          :ry="6"
           :fill="getNodeFill(node)"
           :stroke="getNodeStroke(node)"
           :stroke-width="getNodeStrokeWidth(node)"
@@ -62,7 +66,7 @@
         />
         <text
           :x="nodeWidth / 2"
-          :y="nodeHeight / 2 + 5"
+          :y="nodeHeight / 2 + 4"
           text-anchor="middle"
           class="node-label"
           :class="{ 'node-label-current': node.id === currentStatus }"
@@ -72,14 +76,14 @@
         <circle
           v-if="node.id === currentStatus"
           :cx="nodeWidth / 2"
-          :cy="-8"
-          r="6"
+          :cy="-6"
+          r="5"
           fill="#67c23a"
           class="current-indicator"
         >
           <animate
             attributeName="r"
-            values="6;8;6"
+            values="5;7;5"
             dur="1.5s"
             repeatCount="indefinite"
           />
@@ -92,8 +96,8 @@
         </circle>
         <text
           v-if="node.isTerminal"
-          :x="nodeWidth + 5"
-          :y="5"
+          :x="nodeWidth + 3"
+          :y="4"
           text-anchor="start"
           class="terminal-badge"
         >
@@ -142,10 +146,10 @@ export default {
     return {
       nodes: STATE_MACHINE_NODES,
       edges: STATE_MACHINE_EDGES,
-      nodeWidth: 100,
-      nodeHeight: 50,
-      svgWidth: 850,
-      svgHeight: 420
+      nodeWidth: 85,
+      nodeHeight: 40,
+      viewBoxWidth: 670,
+      viewBoxHeight: 360
     }
   },
   computed: {
@@ -177,7 +181,7 @@ export default {
     },
     getNodeStrokeWidth(node) {
       if (node.id === this.currentStatus) {
-        return 3
+        return 2.5
       }
       return 1.5
     },
@@ -199,7 +203,7 @@ export default {
     },
     getEdgeWidth(edge) {
       if (this.isEdgeActive(edge)) {
-        return 2.5
+        return 2
       }
       return 1
     },
@@ -224,6 +228,7 @@ export default {
       const dx = to.x - from.x
       const dy = to.y - from.y
       const dist = Math.sqrt(dx * dx + dy * dy)
+      if (dist === 0) return ''
 
       const nodeRadius = Math.min(this.nodeWidth, this.nodeHeight) / 2
       const offsetX = (dx / dist) * nodeRadius
@@ -239,7 +244,7 @@ export default {
 
       const perpX = -dy / dist
       const perpY = dx / dist
-      const curveOffset = dist > 200 ? 30 : 20
+      const curveOffset = dist > 180 ? 25 : 18
 
       const ctrlX = midX + perpX * curveOffset
       const ctrlY = midY + perpY * curveOffset
@@ -257,10 +262,11 @@ export default {
       const dx = to.x - from.x
       const dy = to.y - from.y
       const dist = Math.sqrt(dx * dx + dy * dy)
+      if (dist === 0) return 0
       const perpX = -dy / dist
       const perpY = dx / dist
-      const curveOffset = dist > 200 ? 45 : 35
-      return (from.y + to.y) / 2 + perpY * curveOffset - 5
+      const curveOffset = dist > 180 ? 40 : 30
+      return (from.y + to.y) / 2 + perpY * curveOffset - 3
     }
   }
 }
@@ -271,12 +277,15 @@ export default {
   background: #fff;
   border: 1px solid #e4e7ed;
   border-radius: 8px;
-  padding: 20px;
+  padding: 16px;
   position: relative;
+  width: 100%;
 
   .diagram-svg {
     display: block;
-    margin: 0 auto;
+    width: 100%;
+    height: auto;
+    min-height: 300px;
 
     .node-rect {
       transition: all 0.3s ease;
@@ -287,12 +296,12 @@ export default {
       }
 
       &.node-current {
-        filter: drop-shadow(0 0 8px rgba(103, 194, 58, 0.5));
+        filter: drop-shadow(0 0 6px rgba(103, 194, 58, 0.5));
       }
     }
 
     .node-label {
-      font-size: 13px;
+      font-size: 12px;
       fill: #606266;
       font-weight: 500;
 
@@ -303,16 +312,16 @@ export default {
     }
 
     .terminal-badge {
-      font-size: 10px;
+      font-size: 9px;
       fill: #909399;
     }
 
     .edge-active {
-      filter: drop-shadow(0 0 4px rgba(64, 158, 255, 0.5));
+      filter: drop-shadow(0 0 3px rgba(64, 158, 255, 0.5));
     }
 
     .edge-label {
-      font-size: 11px;
+      font-size: 10px;
       fill: #909399;
 
       &.edge-label-active {
@@ -326,30 +335,32 @@ export default {
     }
 
     .current-indicator {
-      filter: drop-shadow(0 0 4px rgba(103, 194, 58, 0.8));
+      filter: drop-shadow(0 0 3px rgba(103, 194, 58, 0.8));
     }
   }
 
   .legend {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
-    gap: 24px;
-    margin-top: 16px;
-    padding-top: 16px;
+    gap: 16px;
+    margin-top: 12px;
+    padding-top: 12px;
     border-top: 1px solid #f0f2f5;
 
     .legend-item {
       display: flex;
       align-items: center;
-      gap: 6px;
-      font-size: 12px;
+      gap: 4px;
+      font-size: 11px;
       color: #606266;
 
       .legend-dot {
-        width: 12px;
-        height: 12px;
+        width: 10px;
+        height: 10px;
         border-radius: 50%;
         border: 2px solid;
+        flex-shrink: 0;
 
         &.current {
           background: rgba(103, 194, 58, 0.2);

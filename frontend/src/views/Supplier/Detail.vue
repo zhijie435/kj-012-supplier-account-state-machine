@@ -68,7 +68,7 @@
                 {{ supplier?.company_name || '-' }}
               </el-descriptions-item>
               <el-descriptions-item label="统一社会信用代码">
-                {{ supplier?.tax_number || '-' }}
+                {{ supplier?.tax_id || '-' }}
               </el-descriptions-item>
               <el-descriptions-item label="联系人">
                 {{ supplier?.contact_person || '-' }}
@@ -79,10 +79,62 @@
               <el-descriptions-item label="邮箱">
                 {{ supplier?.email || '-' }}
               </el-descriptions-item>
+              <el-descriptions-item label="地址">
+                {{ supplier?.address || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="开户银行">
+                {{ supplier?.bank_name || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="银行账号">
+                {{ supplier?.bank_account || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="信用额度">
+                {{ supplier?.credit_limit || 0 }}
+              </el-descriptions-item>
+              <el-descriptions-item label="账户余额">
+                {{ supplier?.balance || 0 }}
+              </el-descriptions-item>
+              <el-descriptions-item label="国家代码">
+                {{ supplier?.country_code || '-' }}
+              </el-descriptions-item>
               <el-descriptions-item label="是否跨境">
                 <el-tag :type="supplier?.is_cross_border ? 'success' : 'info'" size="small">
                   {{ supplier?.is_cross_border ? '是' : '否' }}
                 </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="出口许可证">
+                {{ supplier?.export_license || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="进出口代码">
+                {{ supplier?.import_export_code || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="资质证书" :span="2">
+                <div v-if="supplier?.certifications && supplier.certifications.length > 0" class="certifications">
+                  <el-tag
+                    v-for="(cert, idx) in supplier.certifications"
+                    :key="idx"
+                    type="info"
+                    size="small"
+                    style="margin-right: 6px;"
+                  >
+                    {{ cert }}
+                  </el-tag>
+                </div>
+                <span v-else>-</span>
+              </el-descriptions-item>
+              <el-descriptions-item label="服务市场" :span="2">
+                <div v-if="supplier?.serviced_markets && supplier.serviced_markets.length > 0" class="markets">
+                  <el-tag
+                    v-for="(market, idx) in supplier.serviced_markets"
+                    :key="idx"
+                    type="success"
+                    size="small"
+                    style="margin-right: 6px;"
+                  >
+                    {{ market }}
+                  </el-tag>
+                </div>
+                <span v-else>-</span>
               </el-descriptions-item>
               <el-descriptions-item label="营业执照" :span="2">
                 <el-tag v-if="supplier?.business_license" type="success" size="small">

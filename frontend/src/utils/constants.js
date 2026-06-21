@@ -26,12 +26,12 @@ export const SUPPLIER_STATUS_MAP = {
 }
 
 export const STATE_MACHINE_NODES = [
-  { id: SUPPLIER_ACCOUNT_STATUS.PENDING, label: '待审核', x: 80, y: 200, color: '#e6a23c', isTerminal: false },
-  { id: SUPPLIER_ACCOUNT_STATUS.VERIFYING, label: '审核中', x: 280, y: 100, color: '#409eff', isTerminal: false },
-  { id: SUPPLIER_ACCOUNT_STATUS.ACTIVE, label: '已激活', x: 480, y: 100, color: '#67c23a', isTerminal: false },
-  { id: SUPPLIER_ACCOUNT_STATUS.SUSPENDED, label: '已暂停', x: 480, y: 300, color: '#f56c6c', isTerminal: false },
-  { id: SUPPLIER_ACCOUNT_STATUS.REJECTED, label: '已拒绝', x: 280, y: 300, color: '#f56c6c', isTerminal: true },
-  { id: SUPPLIER_ACCOUNT_STATUS.CANCELLED, label: '已注销', x: 680, y: 200, color: '#909399', isTerminal: true }
+  { id: SUPPLIER_ACCOUNT_STATUS.PENDING, label: '待审核', x: 30, y: 150, color: '#e6a23c', isTerminal: false },
+  { id: SUPPLIER_ACCOUNT_STATUS.VERIFYING, label: '审核中', x: 190, y: 60, color: '#409eff', isTerminal: false },
+  { id: SUPPLIER_ACCOUNT_STATUS.ACTIVE, label: '已激活', x: 360, y: 60, color: '#67c23a', isTerminal: false },
+  { id: SUPPLIER_ACCOUNT_STATUS.SUSPENDED, label: '已暂停', x: 360, y: 240, color: '#f56c6c', isTerminal: false },
+  { id: SUPPLIER_ACCOUNT_STATUS.REJECTED, label: '已拒绝', x: 190, y: 240, color: '#f56c6c', isTerminal: true },
+  { id: SUPPLIER_ACCOUNT_STATUS.CANCELLED, label: '已注销', x: 530, y: 150, color: '#909399', isTerminal: true }
 ]
 
 export const STATE_MACHINE_EDGES = [

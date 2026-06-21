@@ -3,10 +3,15 @@
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ProductCostController;
 use App\Http\Controllers\Api\SettlementController;
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\SupplierController;
 use Illuminate\Support\Facades\Route;
 
+Route::post('/auth/login', [AuthController::class, 'login'])->name('auth.login');
+
 Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
+    Route::get('/auth/user', [AuthController::class, 'user'])->name('auth.user');
     Route::apiResource('/suppliers', SupplierController::class)->names('suppliers');
 
     Route::put('/suppliers/{supplier}/status', [SupplierController::class, 'updateStatus'])->name('suppliers.update-status');
