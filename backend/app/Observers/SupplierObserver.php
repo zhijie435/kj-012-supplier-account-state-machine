@@ -11,11 +11,14 @@ class SupplierObserver
 {
     public function updated(Supplier $supplier): void
     {
-        if (!$supplier->wasChanged('status')) {
+        if (! $supplier->wasChanged('status')) {
             return;
         }
 
-        $originalStatus = SupplierAccountStatus::tryFrom($supplier->getOriginal('status'));
+        $originalRawValue = $supplier->getRawOriginal('status');
+        $originalStatus = $originalRawValue instanceof SupplierAccountStatus
+            ? $originalRawValue
+            : SupplierAccountStatus::tryFrom($originalRawValue);
         $newStatus = $supplier->getStatusEnum();
 
         if ($originalStatus && $originalStatus !== $newStatus) {

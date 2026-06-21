@@ -18,6 +18,8 @@ trait HasStateMachine
     {
         $this->stateMachine()->transitionTo($targetState, $context);
 
+        $this->refresh();
+
         return $this;
     }
 
@@ -28,11 +30,11 @@ trait HasStateMachine
 
     public function getStatusEnum(): SupplierAccountStatus
     {
-        $rawValue = $this->getRawOriginal('status') ?? $this->status;
+        $currentValue = $this->status;
 
-        return $rawValue instanceof SupplierAccountStatus
-            ? $rawValue
-            : SupplierAccountStatus::from($rawValue);
+        return $currentValue instanceof SupplierAccountStatus
+            ? $currentValue
+            : SupplierAccountStatus::from($currentValue);
     }
 
     public function isPending(): bool

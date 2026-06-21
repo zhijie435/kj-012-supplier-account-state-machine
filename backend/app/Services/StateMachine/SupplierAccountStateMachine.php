@@ -15,8 +15,7 @@ class SupplierAccountStateMachine implements StateMachineInterface
 {
     public function __construct(
         protected Supplier $supplier,
-    ) {
-    }
+    ) {}
 
     public function getModel(): Model
     {
@@ -32,7 +31,7 @@ class SupplierAccountStateMachine implements StateMachineInterface
 
     public function canTransitionTo(BackedEnum $targetState, array $context = []): bool
     {
-        if (!$targetState instanceof SupplierAccountStatus) {
+        if (! $targetState instanceof SupplierAccountStatus) {
             return false;
         }
 
@@ -41,7 +40,7 @@ class SupplierAccountStateMachine implements StateMachineInterface
 
     public function validateTransition(BackedEnum $targetState, array $context = []): TransitionResult
     {
-        if (!$targetState instanceof SupplierAccountStatus) {
+        if (! $targetState instanceof SupplierAccountStatus) {
             return TransitionResult::failure('无效的供应商账户状态类型');
         }
 
@@ -55,7 +54,7 @@ class SupplierAccountStateMachine implements StateMachineInterface
             return TransitionResult::failure("供应商账户已处于终态（{$current->label()}），无法变更状态");
         }
 
-        if (!$this->canTransitionTo($targetState, $context)) {
+        if (! $this->canTransitionTo($targetState, $context)) {
             $allowed = array_map(fn (SupplierAccountStatus $s) => $s->label(), $current->allowedTransitions());
             $allowedStr = $allowed ? implode('、', $allowed) : '无';
 
@@ -91,7 +90,7 @@ class SupplierAccountStateMachine implements StateMachineInterface
 
     public function transitionTo(BackedEnum $targetState, array $context = []): Model
     {
-        if (!$targetState instanceof SupplierAccountStatus) {
+        if (! $targetState instanceof SupplierAccountStatus) {
             throw new \InvalidArgumentException('无效的供应商账户状态类型');
         }
 
@@ -108,11 +107,11 @@ class SupplierAccountStateMachine implements StateMachineInterface
         return DB::transaction(function () use ($targetState, $context) {
             $timestampField = $targetState->timestampField();
 
-            if ($timestampField && !$this->supplier->$timestampField) {
+            if ($timestampField && ! $this->supplier->$timestampField) {
                 $this->supplier->$timestampField = now();
             }
 
-            $this->supplier->status = $targetState->value;
+            $this->supplier->status = $targetState;
 
             if (isset($context['remark'])) {
                 $this->supplier->remark = $context['remark'] ?? $this->supplier->remark;
