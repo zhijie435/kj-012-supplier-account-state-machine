@@ -21,6 +21,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/suppliers/{supplier}/cancel', [SupplierController::class, 'cancel'])->name('suppliers.cancel');
 
     Route::get('products/calculate-cost', [ProductController::class, 'calculateCost']);
+    Route::get('products/{product}/costs', [ProductController::class, 'getCosts']);
+    Route::post('products/{product}/costs', [ProductController::class, 'addCost']);
+    Route::put('products/costs/{cost}', [ProductController::class, 'updateCost']);
+    Route::delete('products/costs/{cost}', [ProductController::class, 'deleteCost']);
     Route::apiResource('products', ProductController::class);
 
     Route::post('product-costs/batch', [ProductCostController::class, 'batchStore']);

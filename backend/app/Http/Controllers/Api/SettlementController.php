@@ -4,8 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Settlement;
-use App\Models\Supplier;
-use App\Models\User;
 use App\Services\SettlementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,28 +19,24 @@ class SettlementController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $query = Settlement::with(['party', 'settler', 'creator']);
+        $query = Settlement::with(['items', 'creator', 'updater', 'settler']);
 
         if ($request->filled('type')) {
             $query->ofType($request->type);
-        }
-
-        if ($request->filled('party_id')) {
-            $query->ofParty($request->party_id);
         }
 
         if ($request->filled('status')) {
             $query->ofStatus($request->status);
         }
 
-        $this->applySearch($query, $request, ['settlement_no', 'party_name']);
+        $this->applySearch($query, $request, ['settlement_no', 'order_no', 'remark']);
 
         if ($request->filled('start_date')) {
-            $query->whereDate('end_date', '>=', $request->start_date);
+            $query->whereDate('settlement_date', '>=', $request->start_date);
         }
 
         if ($request->filled('end_date')) {
-            $query->whereDate('start_date', '<=', $request->end_date);
+            $query->whereDate('settlement_date', '<=', $request->end_date);
         }
 
         $settlements = $query->orderBy('id', 'desc')->paginate($this->perPage($request));
@@ -57,17 +51,22 @@ class SettlementController extends Controller
     public function store(Request $request): JsonResponse
     {
         $request->validate([
-            'type' => 'required|string|in:supplier,distributor',
-            'party_id' => 'required|integer',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
-            'remark' => 'nullable|string',
+            'type' => 'required|string|in:order,monthly,manual',
+            'settlement_date' => 'required|date',
+            'order_no' => 'nullable|string',
+            'supplier_ratio' => 'nullable|numeric|min:0|max:1',
+            'distributor_ratio' => 'nullable|numeric|min:0|max:1',
+            'platform_ratio' => 'nullable|numeric|min:0|max:1',
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|integer|exists:products,id',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.sale_price' => 'nullable|numeric|min:0',
+            'items.*.unit_cost' => 'nullable|numeric|min:0',
+            'remark' => 'nullable|string|max:500',
         ]);
 
         try {
             $settlement = $this->settlementService->createSettlement(
-                $request->type,
-                $request->party_id,
                 $request->all(),
                 auth()->id()
             );
@@ -88,7 +87,7 @@ class SettlementController extends Controller
 
     public function show(Settlement $settlement): JsonResponse
     {
-        $settlement->load(['items', 'party', 'settler', 'creator', 'updater']);
+        $settlement->load(['items', 'creator', 'updater', 'settler']);
 
         return response()->json([
             'code' => 0,
@@ -97,46 +96,20 @@ class SettlementController extends Controller
         ]);
     }
 
-    public function update(Request $request, Settlement $settlement): JsonResponse
-    {
-        $request->validate([
-            'remark' => 'nullable|string',
-        ]);
-
-        if ($settlement->status !== Settlement::STATUS_PENDING) {
-            return response()->json([
-                'code' => 1,
-                'data' => null,
-                'message' => '只有待结算状态的结算单可以编辑',
-            ], 400);
-        }
-
-        $settlement->update([
-            'remark' => $request->remark,
-            'updated_by' => auth()->id(),
-        ]);
-
-        return response()->json([
-            'code' => 0,
-            'data' => $settlement->fresh(),
-            'message' => '更新成功',
-        ]);
-    }
-
     public function preview(Request $request): JsonResponse
     {
         $request->validate([
-            'type' => 'required|string|in:supplier,distributor',
-            'party_id' => 'required|integer',
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date',
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|integer|exists:products,id',
+            'items.*.quantity' => 'required|integer|min:1',
+            'supplier_ratio' => 'nullable|numeric|min:0|max:1',
+            'distributor_ratio' => 'nullable|numeric|min:0|max:1',
+            'platform_ratio' => 'nullable|numeric|min:0|max:1',
         ]);
 
-        $preview = $this->settlementService->previewSettlement(
-            $request->type,
-            $request->party_id,
-            $request->start_date,
-            $request->end_date
+        $preview = $this->settlementService->previewFromItems(
+            $request->items,
+            $request->only(['supplier_ratio', 'distributor_ratio', 'platform_ratio'])
         );
 
         return response()->json([
@@ -150,41 +123,12 @@ class SettlementController extends Controller
     {
         $settlement = Settlement::findOrFail($id);
 
-        if ($settlement->status !== Settlement::STATUS_PENDING) {
-            return response()->json([
-                'code' => 1,
-                'data' => null,
-                'message' => '只有待结算状态的结算单可以重新计算',
-            ], 400);
-        }
-
         try {
-            $preview = $this->settlementService->previewSettlement(
-                $settlement->period_type,
-                $settlement->party_id,
-                $settlement->start_date,
-                $settlement->end_date
-            );
-
-            $settlement->items()->delete();
-
-            foreach ($preview['items'] as $itemData) {
-                $itemData['settlement_id'] = $settlement->id;
-                \App\Models\SettlementItem::create($itemData);
-            }
-
-            $settlement->update([
-                'order_count' => $preview['order_count'],
-                'total_sales_amount' => $preview['total_sales_amount'],
-                'total_cost_amount' => $preview['total_cost_amount'],
-                'total_commission_amount' => $preview['total_commission_amount'],
-                'settlement_amount' => $preview['settlement_amount'],
-                'updated_by' => auth()->id(),
-            ]);
+            $settlement = $this->settlementService->recalculateSettlement($settlement, auth()->id());
 
             return response()->json([
                 'code' => 0,
-                'data' => $settlement->fresh(['items']),
+                'data' => $settlement,
                 'message' => '重新计算成功',
             ]);
         } catch (\Exception $e) {
@@ -200,24 +144,21 @@ class SettlementController extends Controller
     {
         $settlement = Settlement::findOrFail($id);
 
-        if ($settlement->status !== Settlement::STATUS_PENDING) {
+        try {
+            $settlement = $this->settlementService->confirmSettlement($settlement, auth()->id());
+
+            return response()->json([
+                'code' => 0,
+                'data' => $settlement,
+                'message' => '确认成功',
+            ]);
+        } catch (\Exception $e) {
             return response()->json([
                 'code' => 1,
                 'data' => null,
-                'message' => '只有待结算状态的结算单可以确认',
+                'message' => $e->getMessage(),
             ], 400);
         }
-
-        $settlement->update([
-            'status' => Settlement::STATUS_PROCESSING,
-            'updated_by' => auth()->id(),
-        ]);
-
-        return response()->json([
-            'code' => 0,
-            'data' => $settlement->fresh(),
-            'message' => '已确认，结算中',
-        ]);
     }
 
     public function settle(Request $request, $id): JsonResponse
@@ -225,7 +166,7 @@ class SettlementController extends Controller
         $settlement = Settlement::findOrFail($id);
 
         try {
-            $settlement = $this->settlementService->approveSettlement($settlement, auth()->id());
+            $settlement = $this->settlementService->settleSettlement($settlement, auth()->id());
 
             return response()->json([
                 'code' => 0,
@@ -245,22 +186,10 @@ class SettlementController extends Controller
     {
         $settlement = Settlement::findOrFail($id);
 
-        if ($settlement->status === Settlement::STATUS_SETTLED) {
-            return response()->json([
-                'code' => 1,
-                'data' => null,
-                'message' => '已完成的结算单不能取消',
-            ], 400);
-        }
-
-        $request->validate([
-            'reason' => 'nullable|string|max:500',
-        ]);
-
         try {
-            $settlement = $this->settlementService->rejectSettlement(
+            $settlement = $this->settlementService->cancelSettlement(
                 $settlement,
-                $request->reason ?? '手动取消',
+                $request->reason ?? '',
                 auth()->id()
             );
 
@@ -271,7 +200,7 @@ class SettlementController extends Controller
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'code' => 1,
+                               'code' => 1,
                 'data' => null,
                 'message' => $e->getMessage(),
             ], 400);
@@ -282,7 +211,9 @@ class SettlementController extends Controller
     {
         $stats = $this->settlementService->getStatistics(
             $request->type,
-            $request->party_id
+            $request->status,
+            $request->start_date,
+            $request->end_date
         );
 
         return response()->json([
@@ -292,47 +223,17 @@ class SettlementController extends Controller
         ]);
     }
 
-    public function getPartyOptions(Request $request): JsonResponse
-    {
-        $request->validate([
-            'type' => 'required|string|in:supplier,distributor',
-        ]);
-
-        if ($request->type === Settlement::TYPE_SUPPLIER) {
-            $parties = Supplier::active()
-                ->select('id', 'name', 'company_name')
-                ->get()
-                ->map(function ($s) {
-                    return [
-                        'id' => $s->id,
-                        'name' => $s->name,
-                        'company_name' => $s->company_name,
-                    ];
-                });
-        } else {
-            $parties = User::where('guard_name', 'distributor')
-                ->active()
-                ->select('id', 'name', 'email')
-                ->get();
-        }
-
-        return response()->json([
-            'code' => 0,
-            'data' => $parties,
-            'message' => 'success',
-        ]);
-    }
-
     public function destroy(Settlement $settlement): JsonResponse
     {
-        if ($settlement->status !== Settlement::STATUS_PENDING && $settlement->status !== Settlement::STATUS_REJECTED) {
+        if (!$settlement->isEditable()) {
             return response()->json([
                 'code' => 1,
                 'data' => null,
-                'message' => '只有待结算或已驳回状态的结算单可以删除',
+                'message' => '只有待确认或已取消状态的结算单可以删除',
             ], 400);
         }
 
+        $settlement->items()->delete();
         $settlement->delete();
 
         return response()->json([

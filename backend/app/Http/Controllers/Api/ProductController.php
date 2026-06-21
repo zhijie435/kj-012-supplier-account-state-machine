@@ -162,35 +162,13 @@ class ProductController extends Controller
     {
         $request->validate([
             'product_id' => 'required|integer|exists:products,id',
-            'quantity' => 'nullable|integer|min:1',
-            'purchase_price' => 'nullable|numeric|min:0',
-            'shipping_cost' => 'nullable|numeric|min:0',
-            'packaging_cost' => 'nullable|numeric|min:0',
-            'platform_fee' => 'nullable|numeric|min:0',
-            'commission_rate' => 'nullable|numeric|min:0|max:100',
-            'tax_rate' => 'nullable|numeric|min:0|max:100',
-            'other_cost' => 'nullable|numeric|min:0',
-            'sale_price' => 'nullable|numeric|min:0',
         ]);
 
-        $preview = $this->costService->previewCost($request->product_id, $request->all());
-        $quantity = $request->input('quantity', 1);
-
-        $preview['quantity'] = $quantity;
-        $preview['total_purchase_price'] = round($preview['purchase_price'] * $quantity, 2);
-        $preview['total_shipping_cost'] = round($preview['shipping_cost'] * $quantity, 2);
-        $preview['total_packaging_cost'] = round($preview['packaging_cost'] * $quantity, 2);
-        $preview['total_platform_fee'] = round($preview['platform_fee'] * $quantity, 2);
-        $preview['total_commission_amount'] = round($preview['commission_amount'] * $quantity, 2);
-        $preview['total_tax_amount'] = round($preview['tax_amount'] * $quantity, 2);
-        $preview['total_other_cost'] = round($preview['other_cost'] * $quantity, 2);
-        $preview['total_cost_amount'] = round($preview['total_cost'] * $quantity, 2);
-        $preview['total_sales_amount'] = round($preview['sale_price'] * $quantity, 2);
-        $preview['total_profit'] = round($preview['profit'] * $quantity, 2);
+        $summary = $this->costService->calculateProductSummary($request->product_id);
 
         return response()->json([
             'code' => 0,
-            'data' => $preview,
+            'data' => $summary,
             'message' => 'success',
         ]);
     }
@@ -203,18 +181,14 @@ class ProductController extends Controller
     public function addCost(Request $request, Product $product): JsonResponse
     {
         $request->validate([
-            'purchase_price' => 'required|numeric|min:0',
-            'shipping_cost' => 'nullable|numeric|min:0',
-            'packaging_cost' => 'nullable|numeric|min:0',
-            'platform_fee' => 'nullable|numeric|min:0',
-            'commission_rate' => 'nullable|numeric|min:0|max:100',
-            'tax_rate' => 'nullable|numeric|min:0|max:100',
-            'other_cost' => 'nullable|numeric|min:0',
-            'profit_margin' => 'nullable|numeric|min:0|max:100',
+            'cost_type' => 'required|string|in:purchase,shipping,packaging,platform_fee,marketing,tax,other',
+            'cost_name' => 'required|string|max:100',
+            'unit_cost' => 'required|numeric|min:0',
+            'quantity' => 'nullable|integer|min:1',
             'effective_date' => 'required|date',
             'expiry_date' => 'nullable|date|after:effective_date',
-            'is_active' => 'nullable|boolean',
-            'remark' => 'nullable|string',
+            'is_active' => 'nullable|integer|in:0,1',
+            'remark' => 'nullable|string|max:500',
         ]);
 
         $cost = $this->costService->createProductCost($product->id, $request->all(), auth()->id());
@@ -229,18 +203,14 @@ class ProductController extends Controller
     public function updateCost(Request $request, ProductCost $cost): JsonResponse
     {
         $request->validate([
-            'purchase_price' => 'nullable|numeric|min:0',
-            'shipping_cost' => 'nullable|numeric|min:0',
-            'packaging_cost' => 'nullable|numeric|min:0',
-            'platform_fee' => 'nullable|numeric|min:0',
-            'commission_rate' => 'nullable|numeric|min:0|max:100',
-            'tax_rate' => 'nullable|numeric|min:0|max:100',
-            'other_cost' => 'nullable|numeric|min:0',
-            'profit_margin' => 'nullable|numeric|min:0|max:100',
+            'cost_type' => 'nullable|string|in:purchase,shipping,packaging,platform_fee,marketing,tax,other',
+            'cost_name' => 'nullable|string|max:100',
+            'unit_cost' => 'nullable|numeric|min:0',
+            'quantity' => 'nullable|integer|min:1',
             'effective_date' => 'nullable|date',
             'expiry_date' => 'nullable|date|after:effective_date',
-            'is_active' => 'nullable|boolean',
-            'remark' => 'nullable|string',
+            'is_active' => 'nullable|integer|in:0,1',
+            'remark' => 'nullable|string|max:500',
         ]);
 
         $cost = $this->costService->updateProductCost($cost, $request->all(), auth()->id());

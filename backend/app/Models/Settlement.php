@@ -10,47 +10,60 @@ class Settlement extends Model
 {
     use HasFactory, SoftDeletes;
 
-    const TYPE_SUPPLIER = 'supplier';
-    const TYPE_DISTRIBUTOR = 'distributor';
+    const TYPE_ORDER = 'order';
+    const TYPE_MONTHLY = 'monthly';
+    const TYPE_MANUAL = 'manual';
 
-    const STATUS_PENDING = 0;
-    const STATUS_PROCESSING = 1;
-    const STATUS_SETTLED = 2;
-    const STATUS_REJECTED = 3;
+    const STATUS_PENDING = 'pending';
+    const STATUS_CONFIRMED = 'confirmed';
+    const STATUS_SETTLED = 'settled';
+    const STATUS_CANCELLED = 'cancelled';
 
     protected $fillable = [
         'settlement_no',
-        'period_type',
-        'party_id',
-        'party_name',
-        'start_date',
-        'end_date',
+        'type',
+        'settlement_date',
+        'order_no',
         'order_count',
-        'total_sales_amount',
-        'total_cost_amount',
-        'total_commission_amount',
-        'total_refund_amount',
-        'settlement_amount',
+        'total_amount',
+        'product_cost',
+        'platform_fee',
+        'other_cost',
+        'total_cost',
+        'total_profit',
+        'profit_rate',
+        'supplier_ratio',
+        'distributor_ratio',
+        'platform_ratio',
+        'supplier_share',
+        'distributor_share',
+        'platform_share',
         'status',
-        'settled_at',
-        'settled_by',
         'remark',
         'created_by',
         'updated_by',
+        'settled_by',
+        'settled_at',
     ];
 
     protected function casts(): array
     {
         return [
-            'start_date' => 'date',
-            'end_date' => 'date',
+            'settlement_date' => 'date',
             'order_count' => 'integer',
-            'total_sales_amount' => 'decimal:2',
-            'total_cost_amount' => 'decimal:2',
-            'total_commission_amount' => 'decimal:2',
-            'total_refund_amount' => 'decimal:2',
-            'settlement_amount' => 'decimal:2',
-            'status' => 'integer',
+            'total_amount' => 'decimal:2',
+            'product_cost' => 'decimal:2',
+            'platform_fee' => 'decimal:2',
+            'other_cost' => 'decimal:2',
+            'total_cost' => 'decimal:2',
+            'total_profit' => 'decimal:2',
+            'profit_rate' => 'decimal:4',
+            'supplier_ratio' => 'decimal:4',
+            'distributor_ratio' => 'decimal:4',
+            'platform_ratio' => 'decimal:4',
+            'supplier_share' => 'decimal:2',
+            'distributor_share' => 'decimal:2',
+            'platform_share' => 'decimal:2',
             'settled_at' => 'datetime',
         ];
     }
@@ -60,14 +73,14 @@ class Settlement extends Model
         return $this->hasMany(SettlementItem::class);
     }
 
-    public function orders()
+    public function creator()
     {
-        return $this->belongsToMany(Order::class, 'settlement_items', 'settlement_id', 'order_id');
+        return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function party()
+    public function updater()
     {
-        return $this->belongsTo(User::class, 'party_id');
+        return $this->belongsTo(User::class, 'updated_by');
     }
 
     public function settler()
@@ -75,19 +88,9 @@ class Settlement extends Model
         return $this->belongsTo(User::class, 'settled_by');
     }
 
-    public function creator()
-    {
-        return $this->belongsTo(User::class, 'created_by');
-    }
-
     public function scopeOfType($query, $type)
     {
-        return $query->where('period_type', $type);
-    }
-
-    public function scopeOfParty($query, $partyId)
-    {
-        return $query->where('party_id', $partyId);
+        return $query->where('type', $type);
     }
 
     public function scopeOfStatus($query, $status)
@@ -95,27 +98,82 @@ class Settlement extends Model
         return $query->where('status', $status);
     }
 
-    public function recalculate()
+    public function scopePending($query)
+    {
+        return $query->where('status', self::STATUS_PENDING);
+    }
+
+    public function scopeConfirmed($query)
+    {
+        return $query->where('status', self::STATUS_CONFIRMED);
+    }
+
+    public function scopeSettled($query)
+    {
+        return $query->where('status', self::STATUS_SETTLED);
+    }
+
+    public function scopeCancelled($query)
+    {
+        return $query->where('status', self::STATUS_CANCELLED);
+    }
+
+    public function scopeBetweenDates($query, $startDate, $endDate)
+    {
+        return $query->whereBetween('settlement_date', [$startDate, $endDate]);
+    }
+
+    public function isEditable(): bool
+    {
+        return in_array($this->status, [self::STATUS_PENDING, self::STATUS_CANCELLED]);
+    }
+
+    public function canConfirm(): bool
+    {
+        return $this->status === self::STATUS_PENDING;
+    }
+
+    public function canSettle(): bool
+    {
+        return $this->status === self::STATUS_CONFIRMED;
+    }
+
+    public function canCancel(): bool
+    {
+        return in_array($this->status, [self::STATUS_PENDING, self::STATUS_CONFIRMED]);
+    }
+
+    public function recalculateTotals()
     {
         $orderCount = 0;
-        $totalSales = 0;
+        $totalAmount = 0;
+        $productCost = 0;
         $totalCost = 0;
-        $totalCommission = 0;
-        $settlementAmount = 0;
+        $totalProfit = 0;
 
         foreach ($this->items as $item) {
             $orderCount++;
-            $totalSales += $item->total_sales;
+            $totalAmount += $item->total_sales;
+            $productCost += $item->total_cost;
             $totalCost += $item->total_cost;
-            $totalCommission += $item->commission_amount;
-            $settlementAmount += $item->settlement_amount;
+            $totalProfit += $item->profit;
         }
 
         $this->order_count = $orderCount;
-        $this->total_sales_amount = $totalSales;
-        $this->total_cost_amount = $totalCost;
-        $this->total_commission_amount = $totalCommission;
-        $this->settlement_amount = $settlementAmount;
+        $this->total_amount = round($totalAmount, 2);
+        $this->product_cost = round($productCost, 2);
+        $this->other_cost = 0;
+        $this->total_cost = round($totalCost, 2);
+        $this->total_profit = round($totalProfit, 2);
+        $this->profit_rate = $totalAmount > 0 ? round($totalProfit / $totalAmount, 4) : 0;
+
+        $supplierRatio = (float) ($this->supplier_ratio ?? 0.5);
+        $distributorRatio = (float) ($this->distributor_ratio ?? 0.2);
+        $platformRatio = (float) ($this->platform_ratio ?? 0.3);
+
+        $this->supplier_share = round($totalAmount * $supplierRatio, 2);
+        $this->distributor_share = round($totalAmount * $distributorRatio, 2);
+        $this->platform_share = round($totalAmount * $platformRatio, 2);
 
         return $this;
     }

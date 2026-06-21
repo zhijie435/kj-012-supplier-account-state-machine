@@ -13,7 +13,7 @@ export const SUPPLIER_STATUS_OPTIONS = [
   { value: SUPPLIER_ACCOUNT_STATUS.ACTIVE, label: '已激活', color: 'success' },
   { value: SUPPLIER_ACCOUNT_STATUS.SUSPENDED, label: '已暂停', color: 'danger' },
   { value: SUPPLIER_ACCOUNT_STATUS.REJECTED, label: '已拒绝', color: 'danger' },
-  { value: SUPPLIER_ACCOUNT_STATUS.CANCELLED, label: '已注销', color: 'info' }
+  { value: SUPPLIER_ACCOUNT_STATUS.CANCELLED, label: '已注销', color: 'secondary' }
 ]
 
 export const SUPPLIER_STATUS_MAP = {
@@ -22,7 +22,7 @@ export const SUPPLIER_STATUS_MAP = {
   [SUPPLIER_ACCOUNT_STATUS.ACTIVE]: { label: '已激活', color: 'success' },
   [SUPPLIER_ACCOUNT_STATUS.SUSPENDED]: { label: '已暂停', color: 'danger' },
   [SUPPLIER_ACCOUNT_STATUS.REJECTED]: { label: '已拒绝', color: 'danger' },
-  [SUPPLIER_ACCOUNT_STATUS.CANCELLED]: { label: '已注销', color: 'info' }
+  [SUPPLIER_ACCOUNT_STATUS.CANCELLED]: { label: '已注销', color: 'secondary' }
 }
 
 export const STATE_MACHINE_NODES = [

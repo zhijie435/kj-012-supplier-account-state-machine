@@ -9,19 +9,21 @@ class ProductCost extends Model
 {
     use HasFactory;
 
+    const COST_TYPE_PURCHASE = 'purchase';
+    const COST_TYPE_SHIPPING = 'shipping';
+    const COST_TYPE_PACKAGING = 'packaging';
+    const COST_TYPE_PLATFORM_FEE = 'platform_fee';
+    const COST_TYPE_MARKETING = 'marketing';
+    const COST_TYPE_TAX = 'tax';
+    const COST_TYPE_OTHER = 'other';
+
     protected $fillable = [
         'product_id',
-        'purchase_price',
-        'shipping_cost',
-        'packaging_cost',
-        'platform_fee',
-        'commission_rate',
-        'commission_amount',
-        'tax_rate',
-        'tax_amount',
-        'other_cost',
+        'cost_type',
+        'cost_name',
+        'unit_cost',
+        'quantity',
         'total_cost',
-        'profit_margin',
         'effective_date',
         'expiry_date',
         'is_active',
@@ -33,20 +35,12 @@ class ProductCost extends Model
     protected function casts(): array
     {
         return [
-            'purchase_price' => 'decimal:2',
-            'shipping_cost' => 'decimal:2',
-            'packaging_cost' => 'decimal:2',
-            'platform_fee' => 'decimal:2',
-            'commission_rate' => 'decimal:2',
-            'commission_amount' => 'decimal:2',
-            'tax_rate' => 'decimal:2',
-            'tax_amount' => 'decimal:2',
-            'other_cost' => 'decimal:2',
+            'unit_cost' => 'decimal:2',
+            'quantity' => 'integer',
             'total_cost' => 'decimal:2',
-            'profit_margin' => 'decimal:2',
             'effective_date' => 'date',
             'expiry_date' => 'date',
-            'is_active' => 'boolean',
+            'is_active' => 'integer',
         ];
     }
 
@@ -67,7 +61,12 @@ class ProductCost extends Model
 
     public function scopeActive($query)
     {
-        return $query->where('is_active', true);
+        return $query->where('is_active', 1);
+    }
+
+    public function scopeInactive($query)
+    {
+        return $query->where('is_active', 0);
     }
 
     public function scopeEffectiveAt($query, $date = null)
@@ -83,5 +82,19 @@ class ProductCost extends Model
     public function scopeOfProduct($query, $productId)
     {
         return $query->where('product_id', $productId);
+    }
+
+    public function scopeOfCostType($query, $costType)
+    {
+        return $query->where('cost_type', $costType);
+    }
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::saving(function ($model) {
+            $model->total_cost = round(($model->unit_cost ?? 0) * ($model->quantity ?? 1), 2);
+        });
     }
 }

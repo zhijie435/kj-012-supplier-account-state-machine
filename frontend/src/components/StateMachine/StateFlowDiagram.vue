@@ -144,7 +144,7 @@ export default {
       edges: STATE_MACHINE_EDGES,
       nodeWidth: 100,
       nodeHeight: 50,
-      svgWidth: 800,
+      svgWidth: 850,
       svgHeight: 420
     }
   },

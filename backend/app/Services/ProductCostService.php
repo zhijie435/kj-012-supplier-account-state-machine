@@ -6,138 +6,108 @@ use App\Models\Product;
 use App\Models\ProductCost;
 use App\Models\OrderItem;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 class ProductCostService
 {
-    public function calculateUnitCost(array $costData): float
+    public function getCostTypeMap(): array
     {
-        $purchasePrice = $costData['purchase_price'] ?? 0;
-        $shippingCost = $costData['shipping_cost'] ?? 0;
-        $packagingCost = $costData['packaging_cost'] ?? 0;
-        $platformFee = $costData['platform_fee'] ?? 0;
-        $commissionAmount = $costData['commission_amount'] ?? 0;
-        $taxAmount = $costData['tax_amount'] ?? 0;
-        $otherCost = $costData['other_cost'] ?? 0;
-
-        return round(
-            $purchasePrice + $shippingCost + $packagingCost +
-            $platformFee + $commissionAmount + $taxAmount + $otherCost,
-            2
-        );
+        return [
+            ProductCost::COST_TYPE_PURCHASE => '采购成本',
+            ProductCost::COST_TYPE_SHIPPING => '物流成本',
+            ProductCost::COST_TYPE_PACKAGING => '包装成本',
+            ProductCost::COST_TYPE_PLATFORM_FEE => '平台服务费',
+            ProductCost::COST_TYPE_MARKETING => '营销推广费',
+            ProductCost::COST_TYPE_TAX => '税费',
+            ProductCost::COST_TYPE_OTHER => '其他费用',
+        ];
     }
 
-    public function calculateCommission(float $salePrice, float $commissionRate): float
+    public function getProductTotalCost(int $productId, $date = null): float
     {
-        if ($commissionRate <= 0) {
-            return 0;
+        $activeCosts = ProductCost::where('product_id', $productId)
+            ->active()
+            ->effectiveAt($date)
+            ->get();
+        return round($activeCosts->sum('total_cost'), 2);
+    }
+
+    public function getProductCostBreakdown(int $productId, $date = null): array
+    {
+        $activeCosts = ProductCost::where('product_id', $productId)
+            ->active()
+            ->effectiveAt($date)
+            ->get();
+
+        $breakdown = [];
+        $totalCost = 0;
+
+        foreach ($activeCosts as $cost) {
+            $breakdown[] = [
+                'id' => $cost->id,
+                'cost_type' => $cost->cost_type,
+                'cost_name' => $cost->cost_name,
+                'unit_cost' => (float) $cost->unit_cost,
+                'quantity' => (int) $cost->quantity,
+                'total_cost' => (float) $cost->total_cost,
+            ];
+            $totalCost += $cost->total_cost;
         }
-        return round($salePrice * ($commissionRate / 100), 2);
+
+        return [
+            'items' => $breakdown,
+            'total_cost' => round($totalCost, 2),
+        ];
     }
 
-    public function calculateTax(float $baseAmount, float $taxRate): float
-    {
-        if ($taxRate <= 0) {
-            return 0;
-        }
-        return round($baseAmount * ($taxRate / 100), 2);
-    }
-
-    public function calculateProfit(float $salePrice, float $totalCost): float
-    {
-        return round($salePrice - $totalCost, 2);
-    }
-
-    public function calculateProfitRate(float $salePrice, float $totalCost): float
-    {
-        if ($salePrice <= 0) {
-            return 0;
-        }
-        $profit = $salePrice - $totalCost;
-        return round(($profit / $salePrice) * 100, 2);
-    }
-
-    public function previewCost(int $productId, array $costData): array
+    public function calculateProductSummary(int $productId): array
     {
         $product = Product::findOrFail($productId);
-        $salePrice = $costData['sale_price'] ?? $product->sale_price;
-
-        $commissionRate = $costData['commission_rate'] ?? 0;
-        $taxRate = $costData['tax_rate'] ?? 0;
-
-        $commissionAmount = $this->calculateCommission($salePrice, $commissionRate);
-        $taxAmount = $this->calculateTax($costData['purchase_price'] ?? 0, $taxRate);
-
-        $costData['commission_amount'] = $commissionAmount;
-        $costData['tax_amount'] = $taxAmount;
-
-        $totalCost = $this->calculateUnitCost($costData);
-        $profit = $this->calculateProfit($salePrice, $totalCost);
-        $profitRate = $this->calculateProfitRate($salePrice, $totalCost);
+        $price = (float) ($product->price ?? 0);
+        $totalCost = $this->getProductTotalCost($productId);
+        $profit = round($price - $totalCost, 2);
+        $grossMargin = $price > 0 ? round($profit / $price, 4) : 0;
 
         return [
             'product_id' => $productId,
             'product_name' => $product->name,
             'product_sku' => $product->sku,
-            'sale_price' => round($salePrice, 2),
-            'purchase_price' => round($costData['purchase_price'] ?? 0, 2),
-            'shipping_cost' => round($costData['shipping_cost'] ?? 0, 2),
-            'packaging_cost' => round($costData['packaging_cost'] ?? 0, 2),
-            'platform_fee' => round($costData['platform_fee'] ?? 0, 2),
-            'commission_rate' => round($commissionRate, 2),
-            'commission_amount' => $commissionAmount,
-            'tax_rate' => round($taxRate, 2),
-            'tax_amount' => $taxAmount,
-            'other_cost' => round($costData['other_cost'] ?? 0, 2),
+            'price' => $price,
             'total_cost' => $totalCost,
             'profit' => $profit,
-            'profit_rate' => $profitRate,
+            'gross_margin' => $grossMargin,
         ];
     }
 
     public function createProductCost(int $productId, array $data, int $userId = null): ProductCost
     {
-        $product = Product::findOrFail($productId);
+        Product::findOrFail($productId);
 
         DB::beginTransaction();
         try {
-            $salePrice = $data['sale_price'] ?? $product->sale_price;
-            $commissionRate = $data['commission_rate'] ?? 0;
-            $taxRate = $data['tax_rate'] ?? 0;
-
-            $commissionAmount = $this->calculateCommission($salePrice, $commissionRate);
-            $taxAmount = $this->calculateTax($data['purchase_price'] ?? 0, $taxRate);
-
             $costData = [
                 'product_id' => $productId,
-                'purchase_price' => $data['purchase_price'] ?? 0,
-                'shipping_cost' => $data['shipping_cost'] ?? 0,
-                'packaging_cost' => $data['packaging_cost'] ?? 0,
-                'platform_fee' => $data['platform_fee'] ?? 0,
-                'commission_rate' => $commissionRate,
-                'commission_amount' => $commissionAmount,
-                'tax_rate' => $taxRate,
-                'tax_amount' => $taxAmount,
-                'other_cost' => $data['other_cost'] ?? 0,
-                'profit_margin' => $data['profit_margin'] ?? 0,
+                'cost_type' => $data['cost_type'],
+                'cost_name' => $data['cost_name'],
+                'unit_cost' => $data['unit_cost'] ?? 0,
+                'quantity' => $data['quantity'] ?? 1,
                 'effective_date' => $data['effective_date'],
                 'expiry_date' => $data['expiry_date'] ?? null,
-                'is_active' => $data['is_active'] ?? true,
+                'is_active' => $data['is_active'] ?? 1,
                 'remark' => $data['remark'] ?? null,
                 'created_by' => $userId,
                 'updated_by' => $userId,
             ];
+            $costData['total_cost'] = round($costData['unit_cost'] * $costData['quantity'], 2);
 
-            $costData['total_cost'] = $this->calculateUnitCost($costData);
-
-            if (!empty($data['is_active'])) {
+            if (!empty($costData['is_active'])) {
                 ProductCost::where('product_id', $productId)
-                    ->where('is_active', true)
-                    ->where(function ($q) use ($data) {
+                    ->where('cost_type', $costData['cost_type'])
+                    ->where('is_active', 1)
+                    ->where(function ($q) use ($costData) {
                         $q->whereNull('expiry_date')
-                            ->orWhereDate('expiry_date', '>=', $data['effective_date']);
+                            ->orWhereDate('expiry_date', '>=', $costData['effective_date']);
                     })
-                    ->update(['expiry_date' => $data['effective_date']]);
+                    ->update(['expiry_date' => $costData['effective_date'], 'updated_by' => $userId]);
             }
 
             $productCost = ProductCost::create($costData);
@@ -150,37 +120,39 @@ class ProductCostService
         }
     }
 
+    public function batchCreateProductCosts(int $productId, array $costItems, int $userId = null): array
+    {
+        $created = [];
+        DB::beginTransaction();
+        try {
+            foreach ($costItems as $item) {
+                $item['product_id'] = $productId;
+                $created[] = $this->createProductCost($productId, $item, $userId);
+            }
+            DB::commit();
+            return $created;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
     public function updateProductCost(ProductCost $productCost, array $data, int $userId = null): ProductCost
     {
         DB::beginTransaction();
         try {
-            $product = $productCost->product;
-            $salePrice = $data['sale_price'] ?? $product->sale_price;
-            $commissionRate = $data['commission_rate'] ?? $productCost->commission_rate;
-            $taxRate = $data['tax_rate'] ?? $productCost->tax_rate;
-
-            $commissionAmount = $this->calculateCommission($salePrice, $commissionRate);
-            $taxAmount = $this->calculateTax($data['purchase_price'] ?? $productCost->purchase_price, $taxRate);
-
             $updateData = [
-                'purchase_price' => $data['purchase_price'] ?? $productCost->purchase_price,
-                'shipping_cost' => $data['shipping_cost'] ?? $productCost->shipping_cost,
-                'packaging_cost' => $data['packaging_cost'] ?? $productCost->packaging_cost,
-                'platform_fee' => $data['platform_fee'] ?? $productCost->platform_fee,
-                'commission_rate' => $commissionRate,
-                'commission_amount' => $commissionAmount,
-                'tax_rate' => $taxRate,
-                'tax_amount' => $taxAmount,
-                'other_cost' => $data['other_cost'] ?? $productCost->other_cost,
-                'profit_margin' => $data['profit_margin'] ?? $productCost->profit_margin,
+                'cost_type' => $data['cost_type'] ?? $productCost->cost_type,
+                'cost_name' => $data['cost_name'] ?? $productCost->cost_name,
+                'unit_cost' => $data['unit_cost'] ?? $productCost->unit_cost,
+                'quantity' => $data['quantity'] ?? $productCost->quantity,
                 'effective_date' => $data['effective_date'] ?? $productCost->effective_date,
                 'expiry_date' => $data['expiry_date'] ?? $productCost->expiry_date,
                 'is_active' => $data['is_active'] ?? $productCost->is_active,
                 'remark' => $data['remark'] ?? $productCost->remark,
                 'updated_by' => $userId,
             ];
-
-            $updateData['total_cost'] = $this->calculateUnitCost($updateData);
+            $updateData['total_cost'] = round($updateData['unit_cost'] * $updateData['quantity'], 2);
 
             $productCost->update($updateData);
 
@@ -192,56 +164,60 @@ class ProductCostService
         }
     }
 
-    public function getActiveCost(int $productId, $date = null): ?ProductCost
+    public function toggleActive(ProductCost $productCost, int $userId = null): ProductCost
     {
-        return ProductCost::where('product_id', $productId)
-            ->active()
-            ->effectiveAt($date)
-            ->orderBy('effective_date', 'desc')
-            ->first();
+        $productCost->update([
+            'is_active' => $productCost->is_active ? 0 : 1,
+            'updated_by' => $userId,
+        ]);
+        return $productCost->fresh();
     }
 
     public function buildOrderItemCostSnapshot(Product $product, int $quantity, float $salePrice, $date = null): array
     {
-        $cost = $this->getActiveCost($product->id, $date);
+        $costBreakdown = $this->getProductCostBreakdown($product->id, $date);
 
-        if (!$cost) {
-            $unitCost = 0;
-            $purchasePrice = 0;
-            $shippingCost = 0;
-            $packagingCost = 0;
-            $platformFee = 0;
-            $commissionAmount = 0;
-            $taxAmount = 0;
-            $otherCost = 0;
-        } else {
-            $purchasePrice = $cost->purchase_price;
-            $shippingCost = $cost->shipping_cost;
-            $packagingCost = $cost->packaging_cost;
-            $platformFee = $cost->platform_fee;
-            $commissionAmount = $this->calculateCommission($salePrice, $cost->commission_rate);
-            $taxAmount = $this->calculateTax($purchasePrice, $cost->tax_rate);
-            $otherCost = $cost->other_cost;
+        $purchasePrice = 0;
+        $shippingCost = 0;
+        $packagingCost = 0;
+        $platformFee = 0;
+        $commissionAmount = 0;
+        $taxAmount = 0;
+        $otherCost = 0;
 
-            $unitCost = $this->calculateUnitCost([
-                'purchase_price' => $purchasePrice,
-                'shipping_cost' => $shippingCost,
-                'packaging_cost' => $packagingCost,
-                'platform_fee' => $platformFee,
-                'commission_amount' => $commissionAmount,
-                'tax_amount' => $taxAmount,
-                'other_cost' => $otherCost,
-            ]);
+        foreach ($costBreakdown['items'] as $item) {
+            switch ($item['cost_type']) {
+                case ProductCost::COST_TYPE_PURCHASE:
+                    $purchasePrice += $item['total_cost'];
+                    break;
+                case ProductCost::COST_TYPE_SHIPPING:
+                    $shippingCost += $item['total_cost'];
+                    break;
+                case ProductCost::COST_TYPE_PACKAGING:
+                    $packagingCost += $item['total_cost'];
+                    break;
+                case ProductCost::COST_TYPE_PLATFORM_FEE:
+                    $platformFee += $item['total_cost'];
+                    break;
+                case ProductCost::COST_TYPE_TAX:
+                    $taxAmount += $item['total_cost'];
+                    break;
+                case ProductCost::COST_TYPE_MARKETING:
+                case ProductCost::COST_TYPE_OTHER:
+                default:
+                    $otherCost += $item['total_cost'];
+                    break;
+            }
         }
 
+        $unitCost = $costBreakdown['total_cost'];
         $subtotal = round($salePrice * $quantity, 2);
         $totalCost = round($unitCost * $quantity, 2);
-        $profit = $this->calculateProfit($subtotal, $totalCost);
-        $profitRate = $this->calculateProfitRate($subtotal, $totalCost);
+        $profit = round($subtotal - $totalCost, 2);
+        $profitRate = $subtotal > 0 ? round($profit / $subtotal, 4) : 0;
 
         return [
             'product_id' => $product->id,
-            'product_cost_id' => $cost?->id,
             'product_name' => $product->name,
             'product_sku' => $product->sku,
             'product_image' => $product->image_url,

@@ -85,4 +85,35 @@ class Product extends Model
     {
         return $query->where('category', $category);
     }
+
+    public function getPriceAttribute()
+    {
+        return $this->attributes['price'] ?? $this->attributes['sale_price'] ?? 0;
+    }
+
+    public function getCostAttribute()
+    {
+        $activeCosts = $this->costs()
+            ->where('is_active', 1)
+            ->whereDate('effective_date', '<=', now())
+            ->where(function ($q) {
+                $q->whereNull('expiry_date')
+                    ->orWhereDate('expiry_date', '>=', now());
+            })
+            ->get();
+        return $activeCosts->sum('total_cost');
+    }
+
+    public function getTotalCostAttribute()
+    {
+        return $this->cost;
+    }
+
+    public function getGrossMarginAttribute()
+    {
+        $price = (float) ($this->price ?? 0);
+        $cost = (float) ($this->cost ?? 0);
+        if ($price <= 0) return 0;
+        return round(($price - $cost) / $price, 4);
+    }
 }

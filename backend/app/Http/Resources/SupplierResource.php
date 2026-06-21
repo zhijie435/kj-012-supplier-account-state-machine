@@ -42,7 +42,7 @@ class SupplierResource extends JsonResource
             'allowed_transitions' => $this->when(
                 $request->user()->can('supplier.edit'),
                 fn () => array_map(
-                    fn ($status) => ['value' => $status->value, 'label' => $status->label()],
+                    fn ($status) => ['value' => $status->value, 'label' => $status->label(), 'color' => $status->color()],
                     $this->allowed_transitions
                 )
             ),

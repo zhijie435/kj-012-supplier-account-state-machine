@@ -25,11 +25,15 @@ class ProductCostController extends Controller
             $query->ofProduct($request->product_id);
         }
 
-        if ($request->filled('is_active')) {
-            $query->where('is_active', $request->boolean('is_active'));
+        if ($request->filled('cost_type')) {
+            $query->ofCostType($request->cost_type);
         }
 
-        $this->applySearch($query, $request, ['remark']);
+        if ($request->filled('is_active') && $request->is_active !== '') {
+            $query->where('is_active', (int) $request->is_active);
+        }
+
+        $this->applySearch($query, $request, ['cost_name', 'remark']);
 
         $costs = $query->orderBy('effective_date', 'desc')
             ->orderBy('id', 'desc')
@@ -46,18 +50,14 @@ class ProductCostController extends Controller
     {
         $request->validate([
             'product_id' => 'required|integer|exists:products,id',
-            'purchase_price' => 'required|numeric|min:0',
-            'shipping_cost' => 'nullable|numeric|min:0',
-            'packaging_cost' => 'nullable|numeric|min:0',
-            'platform_fee' => 'nullable|numeric|min:0',
-            'commission_rate' => 'nullable|numeric|min:0|max:100',
-            'tax_rate' => 'nullable|numeric|min:0|max:100',
-            'other_cost' => 'nullable|numeric|min:0',
-            'profit_margin' => 'nullable|numeric|min:0|max:100',
+            'cost_type' => 'required|string|in:purchase,shipping,packaging,platform_fee,marketing,tax,other',
+            'cost_name' => 'required|string|max:100',
+            'unit_cost' => 'required|numeric|min:0',
+            'quantity' => 'nullable|integer|min:1',
             'effective_date' => 'required|date',
             'expiry_date' => 'nullable|date|after:effective_date',
-            'is_active' => 'nullable|boolean',
-            'remark' => 'nullable|string',
+            'is_active' => 'nullable|integer|in:0,1',
+            'remark' => 'nullable|string|max:500',
         ]);
 
         $cost = $this->costService->createProductCost(
@@ -76,30 +76,19 @@ class ProductCostController extends Controller
     public function batchStore(Request $request)
     {
         $request->validate([
-            'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|integer|exists:products,id',
-            'items.*.purchase_price' => 'required|numeric|min:0',
-            'items.*.shipping_cost' => 'nullable|numeric|min:0',
-            'items.*.packaging_cost' => 'nullable|numeric|min:0',
-            'items.*.platform_fee' => 'nullable|numeric|min:0',
-            'items.*.commission_rate' => 'nullable|numeric|min:0|max:100',
-            'items.*.tax_rate' => 'nullable|numeric|min:0|max:100',
-            'items.*.other_cost' => 'nullable|numeric|min:0',
-            'items.*.profit_margin' => 'nullable|numeric|min:0|max:100',
-            'items.*.effective_date' => 'required|date',
-            'items.*.expiry_date' => 'nullable|date|after:effective_date',
-            'items.*.is_active' => 'nullable|boolean',
-            'items.*.remark' => 'nullable|string',
+            'product_id' => 'required|integer|exists:products,id',
+            'cost_items' => 'required|array|min:1',
+            'cost_items.*.cost_type' => 'required|string|in:purchase,shipping,packaging,platform_fee,marketing,tax,other',
+            'cost_items.*.cost_name' => 'required|string|max:100',
+            'cost_items.*.unit_cost' => 'required|numeric|min:0',
+            'cost_items.*.quantity' => 'nullable|integer|min:1',
         ]);
 
-        $created = [];
-        foreach ($request->items as $item) {
-            $created[] = $this->costService->createProductCost(
-                $item['product_id'],
-                $item,
-                auth()->id()
-            );
-        }
+        $created = $this->costService->batchCreateProductCosts(
+            $request->product_id,
+            $request->cost_items,
+            auth()->id()
+        );
 
         return response()->json([
             'code' => 0,
@@ -120,18 +109,14 @@ class ProductCostController extends Controller
     public function update(Request $request, ProductCost $productCost)
     {
         $request->validate([
-            'purchase_price' => 'nullable|numeric|min:0',
-            'shipping_cost' => 'nullable|numeric|min:0',
-            'packaging_cost' => 'nullable|numeric|min:0',
-            'platform_fee' => 'nullable|numeric|min:0',
-            'commission_rate' => 'nullable|numeric|min:0|max:100',
-            'tax_rate' => 'nullable|numeric|min:0|max:100',
-            'other_cost' => 'nullable|numeric|min:0',
-            'profit_margin' => 'nullable|numeric|min:0|max:100',
+            'cost_type' => 'nullable|string|in:purchase,shipping,packaging,platform_fee,marketing,tax,other',
+            'cost_name' => 'nullable|string|max:100',
+            'unit_cost' => 'nullable|numeric|min:0',
+            'quantity' => 'nullable|integer|min:1',
             'effective_date' => 'nullable|date',
             'expiry_date' => 'nullable|date|after:effective_date',
-            'is_active' => 'nullable|boolean',
-            'remark' => 'nullable|string',
+            'is_active' => 'nullable|integer|in:0,1',
+            'remark' => 'nullable|string|max:500',
         ]);
 
         $productCost = $this->costService->updateProductCost(
@@ -150,15 +135,11 @@ class ProductCostController extends Controller
     public function toggleActive(Request $request, $id)
     {
         $productCost = ProductCost::findOrFail($id);
-
-        $productCost->update([
-            'is_active' => !$productCost->is_active,
-            'updated_by' => auth()->id(),
-        ]);
+        $productCost = $this->costService->toggleActive($productCost, auth()->id());
 
         return response()->json([
             'code' => 0,
-            'data' => $productCost->fresh(),
+            'data' => $productCost,
             'message' => $productCost->is_active ? '已启用' : '已禁用',
         ]);
     }

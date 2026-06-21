@@ -1,6 +1,6 @@
 import request from '@/utils/request'
 
-export function getProductCostList(params) {
+export function getProductCosts(params) {
   return request({
     url: '/product-costs',
     method: 'get',

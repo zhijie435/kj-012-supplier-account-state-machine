@@ -245,7 +245,8 @@ export default {
         warning: '#e6a23c',
         danger: '#f56c6c',
         info: '#909399',
-        primary: '#409eff'
+        primary: '#409eff',
+        secondary: '#909399'
       }
       return colorMap[color] || '#606266'
     },
