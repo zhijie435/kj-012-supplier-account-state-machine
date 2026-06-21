@@ -19,9 +19,11 @@
                 >
                     <option value="">全部状态</option>
                     <option value="pending">待审核</option>
-                    <option value="active">已启用</option>
-                    <option value="suspended">已停用</option>
+                    <option value="verifying">审核中</option>
+                    <option value="active">已激活</option>
+                    <option value="suspended">已暂停</option>
                     <option value="rejected">已拒绝</option>
+                    <option value="cancelled">已注销</option>
                 </select>
                 <select
                     v-model="filterCrossBorder"
@@ -104,11 +106,11 @@
                         <td class="px-6 py-4 text-right">
                             <div class="flex items-center justify-end gap-2">
                                 <button
-                                    v-if="auth.can('supplier.approve') && supplier.status === 'pending'"
-                                    @click="openApproveModal(supplier)"
-                                    class="text-sm text-green-600 hover:text-green-700"
+                                    v-if="auth.can('supplier.view')"
+                                    @click="openDetailModal(supplier)"
+                                    class="text-sm text-gray-600 hover:text-gray-700"
                                 >
-                                    审核
+                                    详情
                                 </button>
                                 <button
                                     v-if="auth.can('supplier.edit')"
@@ -118,11 +120,11 @@
                                     编辑
                                 </button>
                                 <button
-                                    v-if="auth.can('supplier.edit')"
-                                    @click="toggleStatus(supplier)"
+                                    v-if="auth.can('supplier.approve') && hasAllowedTransitions(supplier)"
+                                    @click="openStatusModal(supplier)"
                                     class="text-sm text-amber-600 hover:text-amber-700"
                                 >
-                                    {{ supplier.status === 'active' ? '停用' : '启用' }}
+                                    状态变更
                                 </button>
                                 <button
                                     v-if="auth.can('supplier.delete')"
@@ -161,11 +163,11 @@
             </div>
         </div>
 
-        <div v-if="showModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div v-if="showFormModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div class="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-auto">
                 <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
                     <h3 class="font-semibold text-gray-900">{{ isEdit ? '编辑供应商' : '新建供应商' }}</h3>
-                    <button @click="closeModal" class="text-gray-400 hover:text-gray-600">
+                    <button @click="closeFormModal" class="text-gray-400 hover:text-gray-600">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                         </svg>
@@ -252,10 +254,10 @@
                             <span class="text-sm text-gray-700">跨境供应商</span>
                         </label>
                         <div v-if="!isEdit">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">状态</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">初始状态</label>
                             <select v-model="form.status" class="px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm bg-white">
                                 <option value="pending">待审核</option>
-                                <option value="active">已启用</option>
+                                <option value="active">已激活</option>
                             </select>
                         </div>
                     </div>
@@ -267,7 +269,7 @@
                         {{ submitError }}
                     </div>
                     <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                        <button type="button" @click="closeModal" class="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                        <button type="button" @click="closeFormModal" class="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                             取消
                         </button>
                         <button type="submit" :disabled="submitting" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition-colors disabled:opacity-50">
@@ -278,45 +280,222 @@
             </div>
         </div>
 
-        <div v-if="showApproveModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div v-if="showStatusModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div class="bg-white rounded-xl w-full max-w-md">
                 <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                    <h3 class="font-semibold text-gray-900">审核供应商</h3>
-                    <button @click="closeApproveModal" class="text-gray-400 hover:text-gray-600">
+                    <h3 class="font-semibold text-gray-900">状态变更</h3>
+                    <button @click="closeStatusModal" class="text-gray-400 hover:text-gray-600">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                         </svg>
                     </button>
                 </div>
-                <form @submit.prevent="submitApprove" class="p-6 space-y-4">
-                    <div class="p-4 rounded-lg bg-gray-50">
-                        <div class="font-medium text-gray-900">{{ approvingSupplier?.name }}</div>
-                        <div class="text-sm text-gray-500 mt-1">{{ approvingSupplier?.company_name }}</div>
+                <form @submit.prevent="submitStatusChange" class="p-6 space-y-4">
+                    <div class="p-4 rounded-lg bg-gray-50 space-y-2">
+                        <div class="font-medium text-gray-900">{{ statusSupplier?.name }}</div>
+                        <div class="text-sm text-gray-500">{{ statusSupplier?.company_name || '-' }}</div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm text-gray-500">当前状态：</span>
+                            <span :class="statusBadge(statusSupplier?.status)">
+                                {{ statusLabel(statusSupplier?.status) }}
+                            </span>
+                        </div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">审核结果 <span class="text-red-500">*</span></label>
-                        <select v-model="approveForm.status" required class="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm bg-white">
-                            <option value="active">通过</option>
-                            <option value="rejected">拒绝</option>
-                            <option value="suspended">暂停</option>
-                        </select>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">目标状态 <span class="text-red-500">*</span></label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button
+                                v-for="transition in allowedTransitions"
+                                :key="transition.value"
+                                type="button"
+                                @click="statusForm.status = transition.value"
+                                :class="[
+                                    'px-4 py-3 rounded-lg border-2 text-sm font-medium transition-all',
+                                    statusForm.status === transition.value
+                                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                                        : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                                ]"
+                            >
+                                <span :class="statusBadge(transition.value) + ' mb-1'">
+                                    {{ transition.label }}
+                                </span>
+                            </button>
+                        </div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">审核备注</label>
-                        <textarea v-model="approveForm.remark" rows="3" class="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm"></textarea>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            变更备注
+                            <span v-if="statusForm.status === 'rejected'" class="text-red-500">*</span>
+                        </label>
+                        <textarea
+                            v-model="statusForm.remark"
+                            :required="statusForm.status === 'rejected'"
+                            rows="3"
+                            class="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm"
+                            :placeholder="statusForm.status === 'rejected' ? '请输入拒绝原因' : '请输入变更备注（可选）'"
+                        ></textarea>
                     </div>
-                    <div v-if="approveError" class="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
-                        {{ approveError }}
+                    <div v-if="statusError" class="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                        {{ statusError }}
                     </div>
                     <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                        <button type="button" @click="closeApproveModal" class="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                        <button type="button" @click="closeStatusModal" class="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                             取消
                         </button>
-                        <button type="submit" :disabled="approving" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition-colors disabled:opacity-50">
-                            {{ approving ? '提交中...' : '提交' }}
+                        <button type="submit" :disabled="statusSubmitting || !statusForm.status" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition-colors disabled:opacity-50">
+                            {{ statusSubmitting ? '提交中...' : '确认变更' }}
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <div v-if="showDetailModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+                <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                    <h3 class="font-semibold text-gray-900">供应商详情</h3>
+                    <button @click="closeDetailModal" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <div v-if="detailLoading" class="p-12 text-center text-gray-500">
+                    加载中...
+                </div>
+                <div v-else-if="detailSupplier" class="overflow-auto flex-1">
+                    <div class="p-6 space-y-6">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-center gap-4">
+                                <div class="w-14 h-14 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-medium text-xl">
+                                    {{ detailSupplier.name.charAt(0) }}
+                                </div>
+                                <div>
+                                    <h4 class="text-lg font-semibold text-gray-900">{{ detailSupplier.name }}</h4>
+                                    <p class="text-sm text-gray-500">{{ detailSupplier.company_name || '-' }}</p>
+                                    <div class="mt-2">
+                                        <span :class="statusBadge(detailSupplier.status)">
+                                            {{ statusLabel(detailSupplier.status) }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm text-gray-500">信用额度</div>
+                                <div class="text-xl font-semibold text-gray-900">¥{{ formatNumber(detailSupplier.credit_limit) }}</div>
+                                <div class="text-sm text-gray-500 mt-1">余额: ¥{{ formatNumber(detailSupplier.balance) }}</div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-6">
+                            <div class="space-y-4">
+                                <h5 class="text-sm font-semibold text-gray-900 border-b pb-2">基本信息</h5>
+                                <div class="space-y-2 text-sm">
+                                    <div class="flex">
+                                        <span class="text-gray-500 w-20">联系人：</span>
+                                        <span class="text-gray-900">{{ detailSupplier.contact_person }}</span>
+                                    </div>
+                                    <div class="flex">
+                                        <span class="text-gray-500 w-20">电话：</span>
+                                        <span class="text-gray-900">{{ detailSupplier.phone }}</span>
+                                    </div>
+                                    <div class="flex">
+                                        <span class="text-gray-500 w-20">邮箱：</span>
+                                        <span class="text-gray-900">{{ detailSupplier.email || '-' }}</span>
+                                    </div>
+                                    <div class="flex">
+                                        <span class="text-gray-500 w-20">地址：</span>
+                                        <span class="text-gray-900">{{ detailSupplier.address || '-' }}</span>
+                                    </div>
+                                    <div class="flex">
+                                        <span class="text-gray-500 w-20">类型：</span>
+                                        <span class="text-gray-900">{{ detailSupplier.is_cross_border ? '跨境供应商' : '国内供应商' }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="space-y-4">
+                                <h5 class="text-sm font-semibold text-gray-900 border-b pb-2">资质信息</h5>
+                                <div class="space-y-2 text-sm">
+                                    <div class="flex">
+                                        <span class="text-gray-500 w-24">营业执照：</span>
+                                        <span class="text-gray-900">{{ detailSupplier.business_license || '-' }}</span>
+                                    </div>
+                                    <div class="flex">
+                                        <span class="text-gray-500 w-24">税号：</span>
+                                        <span class="text-gray-900">{{ detailSupplier.tax_id || '-' }}</span>
+                                    </div>
+                                    <div class="flex">
+                                        <span class="text-gray-500 w-24">国家代码：</span>
+                                        <span class="text-gray-900">{{ detailSupplier.country_code || '-' }}</span>
+                                    </div>
+                                    <div class="flex">
+                                        <span class="text-gray-500 w-24">出口许可证：</span>
+                                        <span class="text-gray-900">{{ detailSupplier.export_license || '-' }}</span>
+                                    </div>
+                                    <div class="flex">
+                                        <span class="text-gray-500 w-24">进出口代码：</span>
+                                        <span class="text-gray-900">{{ detailSupplier.import_export_code || '-' }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <h5 class="text-sm font-semibold text-gray-900 border-b pb-2">状态变更日志</h5>
+                            <div v-if="!detailSupplier.status_logs?.length" class="text-sm text-gray-500 py-4 text-center">
+                                暂无状态变更记录
+                            </div>
+                            <div v-else class="space-y-3">
+                                <div
+                                    v-for="log in detailSupplier.status_logs"
+                                    :key="log.id"
+                                    class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg"
+                                >
+                                    <div class="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <span v-if="log.from_status" :class="statusBadge(log.from_status.value)">
+                                                {{ log.from_status_label }}
+                                            </span>
+                                            <svg v-if="log.from_status" class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                                            </svg>
+                                            <span :class="statusBadge(log.to_status.value)">
+                                                {{ log.to_status_label }}
+                                            </span>
+                                        </div>
+                                        <div class="text-sm text-gray-500 mt-1">
+                                            {{ log.remark || '无备注' }}
+                                        </div>
+                                        <div class="text-xs text-gray-400 mt-1">
+                                            {{ log.operator?.name || '系统' }} · {{ formatDate(log.created_at) }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3 flex-shrink-0">
+                    <button
+                        v-if="auth.can('supplier.edit')"
+                        @click="closeDetailModal(); openEditModal(detailSupplier)"
+                        class="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                        编辑
+                    </button>
+                    <button
+                        v-if="auth.can('supplier.approve') && hasAllowedTransitions(detailSupplier)"
+                        @click="closeDetailModal(); openStatusModal(detailSupplier)"
+                        class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition-colors"
+                    >
+                        状态变更
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -338,17 +517,22 @@ const page = ref(1);
 const perPage = ref(15);
 const total = ref(0);
 
-const showModal = ref(false);
+const showFormModal = ref(false);
 const isEdit = ref(false);
 const editingId = ref(null);
 const submitting = ref(false);
 const submitError = ref('');
 
-const showApproveModal = ref(false);
-const approvingSupplier = ref(null);
-const approving = ref(false);
-const approveError = ref('');
-const approveForm = reactive({ status: 'active', remark: '' });
+const showStatusModal = ref(false);
+const statusSupplier = ref(null);
+const statusSubmitting = ref(false);
+const statusError = ref('');
+const allowedTransitions = ref([]);
+const statusForm = reactive({ status: '', remark: '' });
+
+const showDetailModal = ref(false);
+const detailSupplier = ref(null);
+const detailLoading = ref(false);
 
 const defaultForm = () => ({
     name: '',
@@ -373,21 +557,27 @@ const defaultForm = () => ({
 
 const form = reactive(defaultForm());
 
-const statusLabel = (s) => ({ pending: '待审核', active: '已启用', suspended: '已停用', rejected: '已拒绝' }[s] || s);
-const statusBadge = (s) => {
-    const map = {
-        pending: 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700',
-        active: 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700',
-        suspended: 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700',
-        rejected: 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700',
-    };
-    return map[s] || '';
+const STATUS_MAP = {
+    pending: { label: '待审核', badge: 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700' },
+    verifying: { label: '审核中', badge: 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700' },
+    active: { label: '已激活', badge: 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700' },
+    suspended: { label: '已暂停', badge: 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700' },
+    rejected: { label: '已拒绝', badge: 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700' },
+    cancelled: { label: '已注销', badge: 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700' },
 };
+
+const statusLabel = (s) => STATUS_MAP[s]?.label || s;
+const statusBadge = (s) => STATUS_MAP[s]?.badge || '';
+
 const formatNumber = (num) => {
     if (num === null || num === undefined) return '0.00';
     return Number(num).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 const formatDate = (d) => d ? new Date(d).toLocaleString('zh-CN') : '-';
+
+const hasAllowedTransitions = (supplier) => {
+    return supplier?.allowed_transitions?.length > 0;
+};
 
 const loadSuppliers = async (p = 1) => {
     loading.value = true;
@@ -419,7 +609,7 @@ const openCreateModal = () => {
     isEdit.value = false;
     editingId.value = null;
     submitError.value = '';
-    showModal.value = true;
+    showFormModal.value = true;
 };
 
 const openEditModal = (supplier) => {
@@ -446,11 +636,11 @@ const openEditModal = (supplier) => {
     isEdit.value = true;
     editingId.value = supplier.id;
     submitError.value = '';
-    showModal.value = true;
+    showFormModal.value = true;
 };
 
-const closeModal = () => {
-    showModal.value = false;
+const closeFormModal = () => {
+    showFormModal.value = false;
 };
 
 const submitForm = async () => {
@@ -462,7 +652,7 @@ const submitForm = async () => {
         } else {
             await api.post('/suppliers', form);
         }
-        closeModal();
+        closeFormModal();
         loadSuppliers(page.value);
     } catch (e) {
         submitError.value = e.response?.data?.message || '保存失败';
@@ -471,40 +661,74 @@ const submitForm = async () => {
     }
 };
 
-const openApproveModal = (supplier) => {
-    approvingSupplier.value = supplier;
-    approveForm.status = 'active';
-    approveForm.remark = '';
-    approveError.value = '';
-    showApproveModal.value = true;
-};
+const openStatusModal = async (supplier) => {
+    statusSupplier.value = supplier;
+    statusForm.status = '';
+    statusForm.remark = '';
+    statusError.value = '';
+    showStatusModal.value = true;
 
-const closeApproveModal = () => {
-    showApproveModal.value = false;
-    approvingSupplier.value = null;
-};
-
-const submitApprove = async () => {
-    approving.value = true;
-    approveError.value = '';
     try {
-        await api.put(`/suppliers/${approvingSupplier.value.id}/approve`, approveForm);
-        closeApproveModal();
+        const { data } = await api.get(`/suppliers/${supplier.id}/allowed-transitions`);
+        allowedTransitions.value = data.data;
+    } catch (e) {
+        allowedTransitions.value = supplier.allowed_transitions || [];
+    }
+};
+
+const closeStatusModal = () => {
+    showStatusModal.value = false;
+    statusSupplier.value = null;
+    allowedTransitions.value = [];
+};
+
+const submitStatusChange = async () => {
+    if (!statusForm.status) return;
+
+    statusSubmitting.value = true;
+    statusError.value = '';
+    try {
+        const endpoint = getStatusEndpoint(statusForm.status);
+        await api.put(`/suppliers/${statusSupplier.value.id}/${endpoint}`, {
+            remark: statusForm.remark,
+        });
+        closeStatusModal();
         loadSuppliers(page.value);
     } catch (e) {
-        approveError.value = e.response?.data?.message || '审核失败';
+        statusError.value = e.response?.data?.message || '状态变更失败';
     } finally {
-        approving.value = false;
+        statusSubmitting.value = false;
     }
 };
 
-const toggleStatus = async (supplier) => {
+const getStatusEndpoint = (status) => {
+    const map = {
+        verifying: 'verify',
+        active: 'activate',
+        suspended: 'suspend',
+        rejected: 'reject',
+        cancelled: 'cancel',
+    };
+    return map[status] || 'status';
+};
+
+const openDetailModal = async (supplier) => {
+    showDetailModal.value = true;
+    detailSupplier.value = null;
+    detailLoading.value = true;
     try {
-        await api.put(`/suppliers/${supplier.id}/toggle-status`);
-        loadSuppliers(page.value);
+        const { data } = await api.get(`/suppliers/${supplier.id}`);
+        detailSupplier.value = data.data;
     } catch (e) {
-        alert(e.response?.data?.message || '操作失败');
+        console.error(e);
+    } finally {
+        detailLoading.value = false;
     }
+};
+
+const closeDetailModal = () => {
+    showDetailModal.value = false;
+    detailSupplier.value = null;
 };
 
 const deleteSupplier = async (supplier) => {
