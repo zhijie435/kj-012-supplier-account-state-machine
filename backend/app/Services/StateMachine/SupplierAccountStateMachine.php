@@ -47,12 +47,16 @@ class SupplierAccountStateMachine implements StateMachineInterface
 
         $current = $this->currentState();
 
-        if ($current === $targetState) {
-            return TransitionResult::success('状态未变更');
+        if ($current->isTerminal()) {
+            if ($current === $targetState) {
+                return TransitionResult::success('状态未变更');
+            }
+
+            return TransitionResult::failure("供应商账户已处于终态（{$current->label()}），无法变更状态");
         }
 
-        if ($current->isTerminal()) {
-            return TransitionResult::failure("供应商账户已处于终态（{$current->label()}），无法变更状态");
+        if ($current === $targetState) {
+            return TransitionResult::success('状态未变更');
         }
 
         if (! $this->canTransitionTo($targetState, $context)) {
@@ -97,10 +101,6 @@ class SupplierAccountStateMachine implements StateMachineInterface
 
         $currentState = $this->currentState();
 
-        if ($currentState === $targetState) {
-            return $this->supplier;
-        }
-
         $validation = $this->validateTransition($targetState, $context);
 
         if ($validation->isInvalid()) {
@@ -117,25 +117,27 @@ class SupplierAccountStateMachine implements StateMachineInterface
         return DB::transaction(function () use ($currentState, $targetState, $context) {
             $timestampField = $targetState->timestampField();
 
-            if ($timestampField && ! $this->supplier->$timestampField) {
+            if ($timestampField && $currentState !== $targetState) {
                 $this->supplier->$timestampField = now();
             }
-
-            $this->supplier->status = $targetState;
 
             if (isset($context['operated_by'])) {
                 $this->supplier->operated_by = $context['operated_by'];
             }
 
-            $this->supplier->save();
+            if ($currentState !== $targetState) {
+                $this->supplier->status = $targetState;
 
-            SupplierAccountStatusLog::create([
-                'supplier_id' => $this->supplier->id,
-                'from_status' => $currentState->value,
-                'to_status' => $targetState->value,
-                'remark' => $context['remark'] ?? null,
-                'operated_by' => $context['operated_by'] ?? null,
-            ]);
+                SupplierAccountStatusLog::create([
+                    'supplier_id' => $this->supplier->id,
+                    'from_status' => $currentState,
+                    'to_status' => $targetState,
+                    'remark' => $context['remark'] ?? null,
+                    'operated_by' => $context['operated_by'] ?? null,
+                ]);
+            }
+
+            $this->supplier->save();
 
             return $this->supplier;
         });

@@ -15,7 +15,7 @@ class SupplierObserver
         SupplierAccountStatusLog::create([
             'supplier_id' => $supplier->id,
             'from_status' => null,
-            'to_status' => $status->value,
+            'to_status' => $status,
             'remark' => '供应商账户创建',
             'operated_by' => Auth::id(),
         ]);
